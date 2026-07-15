@@ -447,21 +447,21 @@ export function LandingPage() {
           <div className="lp-grid-3">
             {(cmsTeachers.length > 0
               ? cmsTeachers.map((t, i) => ({
-                key: t.id,
-                name: t.name,
-                title: t.headline ?? '',
-                bio: t.bio ?? '',
-                color: ['#a5d8ff', '#b2f2bb', '#d0bfff'][i % 3],
-                photo: t.photoUrl ? `${API_URL}${t.photoUrl}` : undefined,
-              }))
+                  key: t.id,
+                  name: t.name,
+                  title: t.headline ?? '',
+                  bio: t.bio ?? '',
+                  color: ['#a5d8ff', '#b2f2bb', '#d0bfff'][i % 3],
+                  photo: t.photoUrl ? `${API_URL}${t.photoUrl}` : undefined,
+                }))
               : TEACHERS.map((t) => ({
-                key: t.name,
-                name: t.name,
-                title: t.title,
-                bio: t.bio,
-                color: t.color,
-                photo: t.photoUrl,
-              }))
+                  key: t.name,
+                  name: t.name,
+                  title: t.title,
+                  bio: t.bio,
+                  color: t.color,
+                  photo: t.photoUrl,
+                }))
             ).map((t, i) => (
               <Reveal key={t.key} variant="up" delay={i * 90}>
                 <article className="lp-teacher">

@@ -68,9 +68,9 @@ async function loadRefreshRecord(token: string | undefined) {
 
 export async function registerParent(input: {
   email: string;
+  phone: string;
   password: string;
   name: string;
-  pin: string;
   children: { name: string; age: number; birthDate?: string }[];
 }) {
   const existing = await prisma.user.findUnique({ where: { email: input.email } });
@@ -78,11 +78,16 @@ export async function registerParent(input: {
     throw new AppError(409, 'Bu e-posta zaten kayıtlı');
   }
   const passwordHash = await hashPassword(input.password);
-  const pinHash = await hashPassword(input.pin);
 
   const user = await prisma.$transaction(async (tx) => {
     const u = await tx.user.create({
-      data: { email: input.email, passwordHash, name: input.name, role: Role.PARENT, pinHash },
+      data: {
+        email: input.email,
+        phone: input.phone,
+        passwordHash,
+        name: input.name,
+        role: Role.PARENT,
+      },
     });
     for (const c of input.children) {
       const child = await tx.childProfile.create({
@@ -147,12 +152,12 @@ export async function selectProfile(refreshToken: string | undefined, userId: st
   return { accessToken, session: await publicSession(state) };
 }
 
-// Hesap moduna dön (PIN ile). Refresh kaydını account moduna alır.
-export async function unlockAccount(refreshToken: string | undefined, userId: string, pin: string) {
+// Hesap moduna dön (parola ile). Refresh kaydını account moduna alır.
+export async function unlockAccount(refreshToken: string | undefined, userId: string, password: string) {
   const record = await loadRefreshRecord(refreshToken);
   if (record.userId !== userId) throw new AppError(403, 'Oturum uyuşmuyor');
-  if (!record.user.pinHash || !(await verifyPassword(pin, record.user.pinHash))) {
-    throw new AppError(401, 'PIN hatalı');
+  if (!(await verifyPassword(password, record.user.passwordHash))) {
+    throw new AppError(401, 'Parola hatalı');
   }
 
   await prisma.refreshToken.update({

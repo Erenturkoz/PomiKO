@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Modal } from '../components/Modal';
@@ -38,6 +38,8 @@ interface Booking {
 
 type Tab = 'home' | 'lessons' | 'tasks' | 'badges' | 'settings';
 
+const TABS: Tab[] = ['home', 'lessons', 'tasks', 'badges', 'settings'] as Tab[];
+
 const NAV: { key: Tab; label: string; dot: string }[] = [
   { key: 'home', label: 'Panelim', dot: '#3b5bdb' },
   { key: 'lessons', label: 'Derslerim', dot: '#2f9e44' },
@@ -60,7 +62,11 @@ function Soon({ title, note }: { title: string; note: string }) {
 export function StudentDashboard() {
   const navigate = useNavigate();
   const { session, unlockAccount, logout } = useAuth();
-  const [tab, setTab] = useState<Tab>('home');
+  // Sekme URL'de tutulur: yenilemede korunur, geri tuşu çalışır
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = searchParams.get('tab') as Tab | null;
+  const tab: Tab = urlTab && TABS.includes(urlTab) ? urlTab : 'home';
+  const setTab = (t: Tab) => setSearchParams(t === 'home' ? {} : { tab: t });
 
   const [me, setMe] = useState<Me | null>(null);
   const [openSlots, setOpenSlots] = useState<OpenSlot[]>([]);
@@ -134,8 +140,8 @@ export function StudentDashboard() {
   }
 
   async function submitPin() {
-    if (!/^\d{4}$/.test(pin)) {
-      setPinError('PIN 4 haneli olmalı');
+    if (pin.length < 1) {
+      setPinError('Parolanı gir');
       return;
     }
     setPinBusy(true);
@@ -144,7 +150,7 @@ export function StudentDashboard() {
       await unlockAccount(pin);
       navigate('/parent');
     } catch (err) {
-      setPinError(err instanceof Error ? err.message : 'PIN hatalı');
+      setPinError(err instanceof Error ? err.message : 'Parola hatalı');
     } finally {
       setPinBusy(false);
     }
@@ -416,17 +422,17 @@ export function StudentDashboard() {
 
       <Modal open={pinOpen} title="Hesaba dön" onClose={() => setPinOpen(false)}>
         <p className="muted small" style={{ marginTop: 0 }}>
-          Kredi yükleme ve profil değiştirme için veli PIN'ini gir.
+          Kredi yükleme ve profil değiştirme için veli hesabının parolasını gir.
         </p>
         {pinError && <div className="alert alert-error">{pinError}</div>}
         <input
-          className="pin-input"
-          inputMode="numeric"
-          maxLength={4}
+          className="pin-input pin-input-pass"
+          type="password"
           value={pin}
-          onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-          placeholder="••••"
+          onChange={(e) => setPin(e.target.value)}
+          placeholder="Veli parolası"
           autoFocus
+          onKeyDown={(e) => e.key === 'Enter' && submitPin()}
         />
         <button
           className="btn btn-primary"

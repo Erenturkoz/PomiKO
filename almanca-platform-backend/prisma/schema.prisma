@@ -33,6 +33,7 @@ enum BookingStatus {
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
+  phone        String? // veli telefon numarası (E.164, örn. +905321234567)
   passwordHash String
   role         Role
   name         String
@@ -43,8 +44,6 @@ model User {
   teacherProfile TeacherProfile? // öğretmen ise: profil
   consents       Consent[]
   refreshTokens  RefreshToken[]
-
-  pinHash String? // veli PIN'i (hesap/kredi alanını korur) — Adım 2'de kapı olarak kullanılacak
 }
 
 // Veliye bağlı çocuk (alt) profilleri. Öğrenme verisinin merkezi.
@@ -96,6 +95,21 @@ model TeacherProfile {
   headline   String? // örn. "Çocuk Almancası Uzmanı"
   photoUrl   String?
   sortOrder  Int     @default(0)
+
+  // İşe alım / özlük bilgileri (yalnızca admin görür)
+  phone           String?
+  birthDate       DateTime?
+  education       String? // mezuniyet / bölüm
+  experienceYears Int?
+  specialties     String? // uzmanlık alanları (serbest metin)
+  iban            String?
+  startDate       DateTime? // işe başlama
+  adminNote       String? // dahili not
+
+  // Admin'in oluşturduğu geçici parola (kopyalama için). GÜVENLİK NOTU:
+  // düz metin parola saklamak normalde yapılmaz; öğretmen kendi parolasını
+  // değiştirme özelliği eklendiğinde bu alan o anda NULL'lanacak.
+  initialPassword String?
 
   availabilitySlots AvailabilitySlot[]
   bookings          Booking[]

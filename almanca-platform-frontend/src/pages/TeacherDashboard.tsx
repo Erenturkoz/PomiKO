@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { LessonJoin } from '../components/LessonJoin';
@@ -8,6 +8,8 @@ import { startOfWeek, addWeeks, formatWeekRange } from '../lib/week';
 import { formatTimeRange, joinState } from '../lib/format';
 
 type Tab = 'home' | 'calendar' | 'lessons' | 'past';
+
+const TABS: Tab[] = ['home', 'calendar', 'lessons', 'past'] as Tab[];
 
 const NAV: { key: Tab; label: string; dot: string }[] = [
   { key: 'home', label: 'Panelim', dot: '#3b5bdb' },
@@ -19,7 +21,11 @@ const NAV: { key: Tab; label: string; dot: string }[] = [
 export function TeacherDashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<Tab>('home');
+  // Sekme URL'de tutulur: yenilemede korunur, geri tuşu çalışır
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = searchParams.get('tab') as Tab | null;
+  const tab: Tab = urlTab && TABS.includes(urlTab) ? urlTab : 'home';
+  const setTab = (t: Tab) => setSearchParams(t === 'home' ? {} : { tab: t });
   const [slots, setSlots] = useState<GridSlot[]>([]);
   const [weekStart, setWeekStart] = useState<Date>(startOfWeek(new Date()));
   const [loading, setLoading] = useState(true);

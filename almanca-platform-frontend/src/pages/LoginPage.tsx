@@ -1,12 +1,14 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { AuthShell } from '../components/AuthShell';
 
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -15,7 +17,7 @@ export function LoginPage() {
     setError(null);
     setBusy(true);
     try {
-      const user = await login(email, password);
+      const user = await login(email.trim(), password);
       navigate(`/${user.role.toLowerCase()}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Giriş başarısız');
@@ -25,47 +27,55 @@ export function LoginPage() {
   }
 
   return (
-    <div className="auth-screen">
-      <div className="auth-card">
-        <h1 className="auth-title">Giriş yap</h1>
-        <p className="auth-subtitle">Hesabınla devam et.</p>
+    <AuthShell
+      title="Tekrar hoş geldin"
+      subtitle="Çocuğunun öğrenme yolculuğuna kaldığın yerden devam et."
+    >
+      {error && <div className="auth-alert">{error}</div>}
 
-        <form onSubmit={handleSubmit} className="form">
-          <label className="field">
-            <span>E-posta</span>
+      <form onSubmit={handleSubmit} className="auth-form">
+        <label className="auth-field">
+          <span>E-posta</span>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="ornek@eposta.com"
+            autoComplete="email"
+            required
+          />
+        </label>
+
+        <label className="auth-field">
+          <span>Parola</span>
+          <div className="auth-pass">
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
-              required
-            />
-          </label>
-          <label className="field">
-            <span>Parola</span>
-            <input
-              type="password"
+              type={showPass ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
               autoComplete="current-password"
               required
             />
-          </label>
+            <button
+              type="button"
+              className="auth-pass-toggle"
+              onClick={() => setShowPass((s) => !s)}
+              aria-label={showPass ? 'Parolayı gizle' : 'Parolayı göster'}
+            >
+              {showPass ? 'Gizle' : 'Göster'}
+            </button>
+          </div>
+        </label>
 
-          {error && <div className="alert alert-error">{error}</div>}
+        <button className="auth-submit" type="submit" disabled={busy}>
+          {busy ? 'Giriş yapılıyor…' : 'Giriş yap'}
+        </button>
+      </form>
 
-          <button className="btn btn-primary" type="submit" disabled={busy}>
-            {busy ? 'Giriş yapılıyor…' : 'Giriş yap'}
-          </button>
-        </form>
-
-        <p className="auth-foot">
-          Hesabın yok mu? <Link to="/register">Veli olarak kaydol</Link>
-        </p>
-        <p className="auth-foot">
-          <Link to="/">← Ana sayfa</Link>
-        </p>
-      </div>
-    </div>
+      <p className="auth-alt">
+        Hesabın yok mu? <Link to="/register">Ücretsiz kayıt ol</Link>
+      </p>
+    </AuthShell>
   );
 }

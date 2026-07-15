@@ -812,3 +812,226 @@
   flex: 1;
 }
 .lp-testi-who { font-size: 0.9rem; }
+
+/* ===================================================================
+   Giriş / Kayıt ekranları (AuthShell) — ana sayfa estetiği
+   =================================================================== */
+
+.authx {
+  display: grid;
+  grid-template-columns: minmax(320px, 460px) 1fr;
+  min-height: 100vh;
+  font-family: 'Nunito', system-ui, sans-serif;
+  background: var(--cream-soft, #fff7ef);
+}
+.authx h1, .authx h2 { font-family: 'Baloo 2', 'Nunito', sans-serif; }
+
+.authx-side {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(165deg, #cfe8f7 0%, #dceefb 50%, #efe4f6 100%);
+  padding: 34px 38px;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+.authx-brand img { height: 46px; width: auto; display: block; }
+.authx-brand-text { font-size: 1.5rem; font-weight: 800; color: #16283c; }
+.authx-side-body { position: relative; z-index: 1; margin-top: 8vh; }
+.authx-side-body h2 {
+  font-size: clamp(1.4rem, 2.2vw, 1.9rem);
+  color: #16283c;
+  line-height: 1.3;
+  margin: 0 0 12px;
+}
+.authx-side-body p { color: #3f586e; line-height: 1.65; margin: 0 0 26px; }
+.authx-points { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.authx-points li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 12px;
+  padding: 11px 15px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #2c4257;
+}
+.authx-points i { width: 16px; height: 16px; border-radius: 5px; flex: 0 0 auto; }
+.authx-blob {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  pointer-events: none;
+}
+.authx-blob-1 { width: 240px; height: 240px; bottom: -80px; left: -80px; }
+.authx-blob-2 { width: 180px; height: 180px; top: 10%; right: -70px; }
+
+.authx-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+}
+.authx-card {
+  width: 100%;
+  max-width: 440px;
+  background: #fff;
+  border: 1px solid #f0e3d3;
+  border-radius: 20px;
+  padding: 34px 34px 28px;
+  box-shadow: 0 18px 50px rgba(22, 40, 60, 0.08);
+}
+.authx-card-wide { max-width: 560px; }
+.authx-back {
+  display: inline-block;
+  font-size: 0.84rem;
+  color: #8497a8;
+  text-decoration: none;
+  margin-bottom: 14px;
+}
+.authx-back:hover { color: #f2764b; }
+.authx-title { margin: 0 0 6px; font-size: 1.6rem; color: #16283c; }
+.authx-subtitle { margin: 0 0 22px; color: #4a6076; font-size: 0.95rem; line-height: 1.55; }
+
+.auth-alert {
+  background: #fff0f0;
+  border: 1px solid #ffc9c9;
+  color: #c92a2a;
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-size: 0.9rem;
+  margin-bottom: 16px;
+}
+
+.auth-form { display: flex; flex-direction: column; gap: 16px; }
+.auth-field { display: flex; flex-direction: column; gap: 6px; }
+.auth-field > span { font-size: 0.86rem; font-weight: 650; color: #2c4257; }
+.auth-field input,
+.auth-field select {
+  border: 1.5px solid #e7dccb;
+  border-radius: 11px;
+  padding: 12px 14px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  background: #fffdf9;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.auth-field input:focus {
+  border-color: #f2764b;
+  box-shadow: 0 0 0 3px rgba(242, 118, 75, 0.14);
+  outline: none;
+}
+.auth-hint { font-size: 0.78rem; color: #8497a8; }
+
+.auth-pass { position: relative; display: flex; }
+.auth-pass input { flex: 1; padding-right: 74px; }
+.auth-pass-toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: none;
+  color: #f2764b;
+  font-weight: 650;
+  font-size: 0.82rem;
+  cursor: pointer;
+  padding: 6px 8px;
+}
+
+.auth-submit {
+  margin-top: 4px;
+  border: none;
+  border-radius: 999px;
+  padding: 14px;
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: inherit;
+  color: #fff;
+  background: #f2764b;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(242, 118, 75, 0.32);
+  transition: background 0.16s ease, transform 0.12s ease;
+}
+.auth-submit:hover:not(:disabled) { background: #ec6738; transform: translateY(-1px); }
+.auth-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.auth-alt { text-align: center; margin: 18px 0 0; font-size: 0.9rem; color: #4a6076; }
+.auth-alt a { color: #f2764b; font-weight: 700; text-decoration: none; }
+
+/* Kayıt: çocuk satırları */
+.authx-children {
+  border: 1.5px dashed #e7dccb;
+  border-radius: 14px;
+  padding: 14px;
+}
+.authx-children-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.authx-children-head > span { font-size: 0.88rem; font-weight: 700; color: #2c4257; }
+.authx-add {
+  border: none;
+  background: #fdeee6;
+  color: #f2764b;
+  border-radius: 999px;
+  padding: 7px 14px;
+  font-weight: 700;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+.authx-add:disabled { opacity: 0.5; cursor: not-allowed; }
+.authx-child-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  padding: 10px 0;
+  border-top: 1px solid #f3ede2;
+  flex-wrap: wrap;
+}
+.authx-child-row:first-of-type { border-top: none; }
+.authx-child-row .auth-field { flex: 1; min-width: 130px; }
+.authx-child-row .auth-field.sm { flex: 0 0 76px; min-width: 76px; }
+.authx-remove {
+  border: none;
+  background: none;
+  color: #c92a2a;
+  font-size: 0.8rem;
+  font-weight: 650;
+  cursor: pointer;
+  padding: 10px 4px;
+}
+
+.auth-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 0.86rem;
+  color: #4a6076;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.auth-consent input { margin-top: 3px; width: 17px; height: 17px; flex: 0 0 auto; }
+
+/* Parola gücü çubuğu */
+.auth-strength { display: flex; gap: 5px; margin-top: 6px; }
+.auth-strength i {
+  flex: 1;
+  height: 5px;
+  border-radius: 3px;
+  background: #eee4d4;
+  transition: background 0.2s ease;
+}
+.auth-strength.s1 i:nth-child(1) { background: #fa5252; }
+.auth-strength.s2 i:nth-child(-n + 2) { background: #ff922b; }
+.auth-strength.s3 i:nth-child(-n + 3) { background: #94c93d; }
+.auth-strength.s4 i { background: #37b24d; }
+
+@media (max-width: 900px) {
+  .authx { grid-template-columns: 1fr; }
+  .authx-side { display: none; }
+  .authx-main { padding: 26px 16px; align-items: flex-start; }
+}

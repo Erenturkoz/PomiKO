@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { asyncHandler } from '../../lib/errors';
 import { authenticate } from '../../middleware/auth';
 import { requireScope } from '../../middleware/roles';
+import { loginLimiter, registerLimiter } from '../../middleware/rateLimit';
 import * as authService from './auth.service';
 import { logEvent } from '../../lib/eventlog';
 import { env } from '../../config/env';
@@ -15,11 +16,21 @@ function setRefreshCookie(res: import('express').Response, token: string) {
   res.cookie(REFRESH_COOKIE, token, {
     httpOnly: true,
     secure: false, // lokal geliştirme; production'da true
-    sameSite: 'lax',
+    sameSite: 'lax', // CSRF koruması: çapraz-köken isteklerde cookie gönderilmez
     maxAge: env.REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000,
     path: '/',
   });
 }
+
+// Türkiye cep telefonu: +90 5xx xxx xx xx (boşluk/tire temizlenmiş beklenir)
+const phoneSchema = z
+  .string()
+  .transform((v) => v.replace(/[\s()-]/g, ''))
+  .refine((v) => /^(\+90|0)?5\d{9}$/.test(v), 'Geçerli bir cep telefonu numarası gir')
+  .transform((v) => {
+    const digits = v.replace(/^\+?90/, '').replace(/^0/, '');
+    return `+90${digits}`;
+  });
 
 const childSchema = z.object({
   name: z.string().min(2, 'Çocuk adı en az 2 karakter olmalı'),
@@ -28,10 +39,14 @@ const childSchema = z.object({
 });
 
 const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8, 'Parola en az 8 karakter olmalı'),
   name: z.string().min(2),
-  pin: z.string().regex(/^\d{4}$/, 'PIN 4 haneli rakam olmalı'),
+  email: z.string().email(),
+  phone: phoneSchema,
+  password: z
+    .string()
+    .min(8, 'Parola en az 8 karakter olmalı')
+    .max(128)
+    .refine((v) => !/^\d+$/.test(v), 'Parola yalnızca rakamlardan oluşamaz'),
   kvkkConsent: z.boolean().refine((v) => v === true, { message: 'KVKK onayı gerekli' }),
   children: z
     .array(childSchema)
@@ -47,6 +62,7 @@ const loginSchema = z.object({
 // Veli kaydı (öğretmen/admin buradan kayıt OLAMAZ)
 router.post(
   '/register',
+  registerLimiter,
   asyncHandler(async (req, res) => {
     const data = registerSchema.parse(req.body);
     const result = await authService.registerParent(data);
@@ -64,6 +80,7 @@ router.post(
 
 router.post(
   '/login',
+  loginLimiter,
   asyncHandler(async (req, res) => {
     const data = loginSchema.parse(req.body);
     const result = await authService.login(data);
@@ -140,17 +157,18 @@ router.post(
   })
 );
 
-const unlockSchema = z.object({ pin: z.string().min(1) });
+const unlockSchema = z.object({ password: z.string().min(1) });
 
-// Hesap moduna dön (PIN ile) → hesap jetonu döner
+// Hesap moduna dön (parola ile) → hesap jetonu döner
 router.post(
   '/profile/unlock',
+  loginLimiter,
   authenticate,
   asyncHandler(async (req, res) => {
-    const { pin } = unlockSchema.parse(req.body);
+    const { password } = unlockSchema.parse(req.body);
     const token = req.cookies?.[REFRESH_COOKIE];
     try {
-      const result = await authService.unlockAccount(token, req.user!.id, pin);
+      const result = await authService.unlockAccount(token, req.user!.id, password);
       logEvent({ type: 'profile.unlock_ok', userId: req.user!.id, role: 'PARENT' });
       res.json({ accessToken: result.accessToken, session: result.session });
     } catch (err) {

@@ -1,10 +1,10 @@
 import { FormEvent, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiFetch, getAccessToken, API_URL } from '../api/client';
-import { LessonJoin } from '../components/LessonJoin';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { Modal } from '../components/Modal';
 import { useAuth } from '../auth/AuthContext';
-import { formatTimeRange } from '../lib/format';
+import { formatTimeRange, joinState } from '../lib/format';
 
 /* ---------------- tipler ---------------- */
 interface Teacher {
@@ -28,6 +28,54 @@ interface AdminBooking {
   slot: { startTime: string; endTime: string };
   child: { name: string; parent: { name: string } };
   teacher: { user: { name: string } };
+}
+interface ParentRow {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  createdAt: string;
+  children: { id: string; name: string; age: number | null; credits: number }[];
+}
+interface ParentDetail {
+  parent: Omit<ParentRow, 'children'> & {
+    children: { id: string; name: string; age: number | null; birthDate: string | null; credits: number }[];
+  };
+  bookings: {
+    id: string;
+    status: string;
+    slot: { startTime: string; endTime: string };
+    child: { name: string };
+    teacher: { user: { name: string } };
+    topic: { name: string } | null;
+  }[];
+}
+interface TeacherDetail {
+  teacher: {
+    id: string;
+    email: string;
+    name: string;
+    createdAt: string;
+    profile: {
+      bio: string | null;
+      phone: string | null;
+      birthDate: string | null;
+      education: string | null;
+      experienceYears: number | null;
+      specialties: string | null;
+      iban: string | null;
+      startDate: string | null;
+      adminNote: string | null;
+      initialPassword: string | null;
+    };
+  };
+  slots: {
+    id: string;
+    startTime: string;
+    endTime: string;
+    status: string;
+    booking: { id: string; child: { name: string }; topic: { name: string } | null } | null;
+  }[];
 }
 interface Topic {
   id: string;
@@ -55,7 +103,8 @@ interface LogRow {
   createdAt: string;
 }
 
-type Tab = 'home' | 'topics' | 'teachers' | 'site' | 'testimonials' | 'lessons' | 'logs';
+type Tab = 'home' | 'topics' | 'teachers' | 'parents' | 'site' | 'testimonials' | 'lessons' | 'logs';
+const TABS: Tab[] = ['home', 'topics', 'teachers', 'parents', 'site', 'testimonials', 'lessons', 'logs'];
 
 // Olay türleri: etiket + renk
 const EVENT_META: Record<string, { label: string; color: string }> = {
@@ -99,6 +148,7 @@ const NAV: { key: Tab; label: string; dot: string }[] = [
   { key: 'home', label: 'Panel', dot: '#3b5bdb' },
   { key: 'topics', label: 'Ders Konuları', dot: '#2f9e44' },
   { key: 'teachers', label: 'Öğretmenler', dot: '#f08c00' },
+  { key: 'parents', label: 'Veliler', dot: '#0ca678' },
   { key: 'site', label: 'Ana Sayfa', dot: '#9775fa' },
   { key: 'testimonials', label: 'Yorumlar', dot: '#f06595' },
   { key: 'lessons', label: 'Dersler', dot: '#868e96' },
@@ -108,7 +158,11 @@ const NAV: { key: Tab; label: string; dot: string }[] = [
 export function AdminDashboard() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const [tab, setTab] = useState<Tab>('home');
+  // Sekme URL'de tutulur (?tab=...): yenilemede korunur, geri tuşu çalışır, link paylaşılabilir
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlTab = searchParams.get('tab') as Tab | null;
+  const tab: Tab = urlTab && TABS.includes(urlTab) ? urlTab : 'home';
+  const setTab = (t: Tab) => setSearchParams(t === 'home' ? {} : { tab: t });
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
 
@@ -117,6 +171,14 @@ export function AdminDashboard() {
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
+  const [parents, setParents] = useState<ParentRow[]>([]);
+  const [parentDetail, setParentDetail] = useState<ParentDetail | null>(null);
+  const [teacherDetail, setTeacherDetail] = useState<TeacherDetail | null>(null);
+  const [detailBusy, setDetailBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [acName, setAcName] = useState('');
+  const [acAge, setAcAge] = useState('');
+  const [acBusy, setAcBusy] = useState(false);
   const [logs, setLogs] = useState<LogRow[]>([]);
   const [logTotal, setLogTotal] = useState(0);
   const [logType, setLogType] = useState('');
@@ -131,13 +193,14 @@ export function AdminDashboard() {
   async function loadAll() {
     setError(null);
     try {
-      const [t, b, tp, ht, ts, sc] = await Promise.all([
+      const [t, b, tp, ht, ts, sc, pr] = await Promise.all([
         apiFetch<{ teachers: Teacher[] }>('/api/admin/teachers'),
         apiFetch<{ bookings: AdminBooking[] }>('/api/admin/bookings'),
         apiFetch<{ topics: Topic[] }>('/api/admin/topics'),
         apiFetch<{ teachers: HomeTeacher[] }>('/api/admin/site/teachers'),
         apiFetch<{ testimonials: Testimonial[] }>('/api/admin/site/testimonials'),
         apiFetch<{ content: Record<string, any> }>('/api/admin/site/content'),
+        apiFetch<{ parents: ParentRow[] }>('/api/admin/parents'),
       ]);
       setTeachers(t.teachers);
       setBookings(b.bookings);
@@ -146,6 +209,7 @@ export function AdminDashboard() {
       setTestimonials(ts.testimonials);
       setHeroTitle(sc.content?.hero?.title ?? '');
       setHeroText(sc.content?.hero?.text ?? '');
+      setParents(pr.parents);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Veriler yüklenemedi');
     }
@@ -188,6 +252,14 @@ export function AdminDashboard() {
   const [tEmail, setTEmail] = useState('');
   const [tPass, setTPass] = useState('');
   const [tBio, setTBio] = useState('');
+  const [tPhone, setTPhone] = useState('');
+  const [tBirth, setTBirth] = useState('');
+  const [tEdu, setTEdu] = useState('');
+  const [tExp, setTExp] = useState('');
+  const [tSpec, setTSpec] = useState('');
+  const [tIban, setTIban] = useState('');
+  const [tStart, setTStart] = useState('');
+  const [tNote, setTNote] = useState('');
   const [tBusy, setTBusy] = useState(false);
 
   async function createTeacher(e: FormEvent) {
@@ -197,12 +269,33 @@ export function AdminDashboard() {
     try {
       await apiFetch('/api/admin/teachers', {
         method: 'POST',
-        body: { name: tName, email: tEmail, password: tPass, bio: tBio || undefined },
+        body: {
+          name: tName,
+          email: tEmail,
+          password: tPass,
+          bio: tBio || undefined,
+          phone: tPhone || undefined,
+          birthDate: tBirth ? new Date(tBirth).toISOString() : undefined,
+          education: tEdu || undefined,
+          experienceYears: tExp ? Number(tExp) : undefined,
+          specialties: tSpec || undefined,
+          iban: tIban || undefined,
+          startDate: tStart ? new Date(tStart).toISOString() : undefined,
+          adminNote: tNote || undefined,
+        },
       });
       setTName('');
       setTEmail('');
       setTPass('');
       setTBio('');
+      setTPhone('');
+      setTBirth('');
+      setTEdu('');
+      setTExp('');
+      setTSpec('');
+      setTIban('');
+      setTStart('');
+      setTNote('');
       flash('Öğretmen oluşturuldu.');
       await loadAll();
     } catch (err) {
@@ -374,6 +467,73 @@ export function AdminDashboard() {
 
   const shownOnHome = homeTeachers.filter((t) => t.showOnHome).length;
 
+  async function openTeacherDetail(userId: string) {
+    setDetailBusy(true);
+    setCopied(false);
+    try {
+      const data = await apiFetch<TeacherDetail>(`/api/admin/teachers/${userId}/detail`);
+      setTeacherDetail(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Öğretmen bilgisi alınamadı');
+    } finally {
+      setDetailBusy(false);
+    }
+  }
+
+  async function openParentDetail(userId: string) {
+    setDetailBusy(true);
+    setAcName('');
+    setAcAge('');
+    try {
+      const data = await apiFetch<ParentDetail>(`/api/admin/parents/${userId}/detail`);
+      setParentDetail(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Veli bilgisi alınamadı');
+    } finally {
+      setDetailBusy(false);
+    }
+  }
+
+  async function copyCredentials() {
+    if (!teacherDetail) return;
+    const pw = teacherDetail.teacher.profile.initialPassword;
+    const text = pw
+      ? `${teacherDetail.teacher.email} - ${pw}`
+      : teacherDetail.teacher.email;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError('Kopyalanamadı — tarayıcı izin vermedi');
+    }
+  }
+
+  async function adminAddChild(e: FormEvent) {
+    e.preventDefault();
+    if (!parentDetail) return;
+    setAcBusy(true);
+    try {
+      await apiFetch(`/api/admin/parents/${parentDetail.parent.id}/children`, {
+        method: 'POST',
+        body: { name: acName, age: Number(acAge) },
+      });
+      flash('Çocuk profili eklendi.');
+      await openParentDetail(parentDetail.parent.id);
+      await loadAll();
+      setAcName('');
+      setAcAge('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Eklenemedi');
+    } finally {
+      setAcBusy(false);
+    }
+  }
+
+  function fmtDate(iso: string | null) {
+    return iso ? new Date(iso).toLocaleDateString('tr-TR') : '—';
+  }
+
   return (
     <div className="student-shell">
       {/* Sol menü */}
@@ -544,6 +704,50 @@ export function AdminDashboard() {
                   <span>Kısa tanıtım (isteğe bağlı)</span>
                   <textarea value={tBio} onChange={(e) => setTBio(e.target.value)} rows={2} />
                 </label>
+
+                <div className="hr-grid">
+                  <label className="field">
+                    <span>Telefon</span>
+                    <input value={tPhone} onChange={(e) => setTPhone(e.target.value)} placeholder="05xx…" />
+                  </label>
+                  <label className="field">
+                    <span>Doğum tarihi</span>
+                    <input type="date" value={tBirth} onChange={(e) => setTBirth(e.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>İşe başlama</span>
+                    <input type="date" value={tStart} onChange={(e) => setTStart(e.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Deneyim (yıl)</span>
+                    <input
+                      inputMode="numeric"
+                      value={tExp}
+                      onChange={(e) => setTExp(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                    />
+                  </label>
+                  <label className="field detail-full">
+                    <span>Eğitim (okul / bölüm)</span>
+                    <input value={tEdu} onChange={(e) => setTEdu(e.target.value)} />
+                  </label>
+                  <label className="field detail-full">
+                    <span>Uzmanlık alanları</span>
+                    <input
+                      value={tSpec}
+                      onChange={(e) => setTSpec(e.target.value)}
+                      placeholder="örn. çocuk almancası, sınav hazırlık"
+                    />
+                  </label>
+                  <label className="field detail-full">
+                    <span>IBAN</span>
+                    <input value={tIban} onChange={(e) => setTIban(e.target.value)} placeholder="TR…" />
+                  </label>
+                  <label className="field detail-full">
+                    <span>Dahili not</span>
+                    <textarea value={tNote} onChange={(e) => setTNote(e.target.value)} rows={2} />
+                  </label>
+                </div>
+
                 <button className="btn btn-primary" type="submit" disabled={tBusy}>
                   {tBusy ? 'Oluşturuluyor…' : 'Öğretmeni oluştur'}
                 </button>
@@ -557,17 +761,52 @@ export function AdminDashboard() {
               ) : (
                 <ul className="s-list">
                   {teachers.map((t) => (
-                    <li key={t.id} className="s-row">
+                    <li key={t.id} className="s-row s-row-click" onClick={() => openTeacherDetail(t.id)}>
                       <div>
                         <div className="s-row-main">{t.name}</div>
                         <div className="muted small">{t.email}</div>
                       </div>
+                      <span className="muted small">Detay ›</span>
                     </li>
                   ))}
                 </ul>
               )}
             </div>
           </>
+        )}
+
+        {/* ---------- Veliler ---------- */}
+        {tab === 'parents' && (
+          <div className="s-card">
+            <h3 className="s-card-title">Veliler ({parents.length})</h3>
+            <p className="muted small" style={{ marginTop: 0 }}>
+              Bir veliye tıklayıp çocuklarını, kredilerini ve ders geçmişini görebilir, çocuk
+              ekleyebilirsin.
+            </p>
+            {parents.length === 0 ? (
+              <p className="empty">Henüz kayıtlı veli yok.</p>
+            ) : (
+              <ul className="s-list">
+                {parents.map((pr) => (
+                  <li key={pr.id} className="s-row s-row-click" onClick={() => openParentDetail(pr.id)}>
+                    <div>
+                      <div className="s-row-main">{pr.name}</div>
+                      <div className="muted small">
+                        {pr.email}
+                        {pr.phone ? ` · ${pr.phone}` : ''}
+                      </div>
+                      <div className="muted small">
+                        {pr.children.length === 0
+                          ? 'Çocuk yok'
+                          : pr.children.map((c) => `${c.name} (${c.credits} kredi)`).join(' · ')}
+                      </div>
+                    </div>
+                    <span className="muted small">Detay ›</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
 
         {/* ---------- Ana sayfa (CMS) ---------- */}
@@ -739,36 +978,90 @@ export function AdminDashboard() {
         )}
 
         {/* ---------- Dersler (gizli izleme) ---------- */}
-        {tab === 'lessons' && (
-          <div className="s-card">
-            <h3 className="s-card-title">Dersler — gizli izleme</h3>
-            {bookings.length === 0 ? (
-              <p className="empty">Şu an planlanmış ders yok.</p>
-            ) : (
-              <ul className="s-list">
-                {bookings.map((b) => (
-                  <li key={b.id} className="s-row">
-                    <div>
-                      <div className="s-row-main">
-                        {formatTimeRange(b.slot.startTime, b.slot.endTime)}
-                      </div>
-                      <div className="muted small">
-                        {b.child.name} (veli: {b.child.parent.name}) · Öğretmen: {b.teacher.user.name}
-                      </div>
-                    </div>
-                    <LessonJoin
-                      bookingId={b.id}
-                      start={b.slot.startTime}
-                      end={b.slot.endTime}
-                      observe
-                      onJoin={(id) => navigate(`/room/${id}`)}
-                    />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
+        {tab === 'lessons' && (() => {
+          // Aktif = ders fiilen başlamış ve bitmemiş (lobi penceresi sayılmaz)
+          const live = bookings.filter(
+            (b) => joinState(b.slot.startTime, b.slot.endTime, 0) === 'open'
+          );
+          const upcoming = bookings.filter(
+            (b) => joinState(b.slot.startTime, b.slot.endTime, 0) === 'future'
+          );
+          const past = bookings
+            .filter((b) => joinState(b.slot.startTime, b.slot.endTime) === 'ended')
+            .reverse();
+          return (
+            <>
+              <div className="s-card">
+                <h3 className="s-card-title">Aktif dersler ({live.length})</h3>
+                <p className="muted small" style={{ marginTop: 0 }}>
+                  Yalnızca şu an devam eden dersler denetlenebilir. Denetimde görünmez ve duyulmaz
+                  olarak izlersin.
+                </p>
+                {live.length === 0 ? (
+                  <p className="empty">Şu an devam eden ders yok.</p>
+                ) : (
+                  <ul className="s-list">
+                    {live.map((b) => (
+                      <li key={b.id} className="s-row">
+                        <div>
+                          <div className="s-row-main">
+                            <span className="live-dot" /> {formatTimeRange(b.slot.startTime, b.slot.endTime)}
+                          </div>
+                          <div className="muted small">
+                            {b.child.name} (veli: {b.child.parent.name}) · Öğretmen: {b.teacher.user.name}
+                          </div>
+                        </div>
+                        <button className="btn btn-primary btn-sm" onClick={() => navigate(`/room/${b.id}`)}>
+                          Denetle
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              {upcoming.length > 0 && (
+                <div className="s-card">
+                  <h3 className="s-card-title">Yaklaşan dersler ({upcoming.length})</h3>
+                  <ul className="s-list">
+                    {upcoming.map((b) => (
+                      <li key={b.id} className="s-row">
+                        <div>
+                          <div className="s-row-main">{formatTimeRange(b.slot.startTime, b.slot.endTime)}</div>
+                          <div className="muted small">
+                            {b.child.name} (veli: {b.child.parent.name}) · Öğretmen: {b.teacher.user.name}
+                          </div>
+                        </div>
+                        <span className="badge">Planlandı</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="s-card">
+                <h3 className="s-card-title">Geçmiş dersler ({past.length})</h3>
+                {past.length === 0 ? (
+                  <p className="empty">Henüz tamamlanmış ders yok.</p>
+                ) : (
+                  <ul className="s-list">
+                    {past.map((b) => (
+                      <li key={b.id} className="s-row">
+                        <div>
+                          <div className="s-row-main">{formatTimeRange(b.slot.startTime, b.slot.endTime)}</div>
+                          <div className="muted small">
+                            {b.child.name} (veli: {b.child.parent.name}) · Öğretmen: {b.teacher.user.name}
+                          </div>
+                        </div>
+                        <span className="badge">Bitti</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
+          );
+        })()}
         {/* ---------- Kayıtlar ---------- */}
         {tab === 'logs' && (
           <>
@@ -867,6 +1160,148 @@ export function AdminDashboard() {
           </>
         )}
       </main>
+
+      {/* ---------- Öğretmen detay popup ---------- */}
+      <Modal
+        open={teacherDetail !== null}
+        title={teacherDetail ? teacherDetail.teacher.name : 'Öğretmen'}
+        onClose={() => setTeacherDetail(null)}
+        wide
+      >
+        {teacherDetail && (
+          <div className="detail-pop">
+            <div className="detail-grid">
+              <div><span className="detail-k">E-posta</span><span>{teacherDetail.teacher.email}</span></div>
+              <div><span className="detail-k">Telefon</span><span>{teacherDetail.teacher.profile.phone ?? '—'}</span></div>
+              <div><span className="detail-k">Doğum tarihi</span><span>{fmtDate(teacherDetail.teacher.profile.birthDate)}</span></div>
+              <div><span className="detail-k">İşe başlama</span><span>{fmtDate(teacherDetail.teacher.profile.startDate)}</span></div>
+              <div><span className="detail-k">Deneyim</span><span>{teacherDetail.teacher.profile.experienceYears != null ? `${teacherDetail.teacher.profile.experienceYears} yıl` : '—'}</span></div>
+              <div><span className="detail-k">Eğitim</span><span>{teacherDetail.teacher.profile.education ?? '—'}</span></div>
+              <div className="detail-full"><span className="detail-k">Uzmanlık</span><span>{teacherDetail.teacher.profile.specialties ?? '—'}</span></div>
+              <div className="detail-full"><span className="detail-k">IBAN</span><span>{teacherDetail.teacher.profile.iban ?? '—'}</span></div>
+              {teacherDetail.teacher.profile.adminNote && (
+                <div className="detail-full"><span className="detail-k">Not</span><span>{teacherDetail.teacher.profile.adminNote}</span></div>
+              )}
+            </div>
+
+            <div className="detail-cred">
+              <div>
+                <span className="detail-k">Hesap bilgileri</span>
+                <code className="detail-code">
+                  {teacherDetail.teacher.email}
+                  {teacherDetail.teacher.profile.initialPassword
+                    ? ` - ${teacherDetail.teacher.profile.initialPassword}`
+                    : ''}
+                </code>
+                {!teacherDetail.teacher.profile.initialPassword && (
+                  <div className="muted small">Bu öğretmen için kayıtlı geçici parola yok.</div>
+                )}
+              </div>
+              <button className="btn btn-primary btn-sm" onClick={copyCredentials}>
+                {copied ? 'Kopyalandı ✓' : 'Bilgileri kopyala'}
+              </button>
+            </div>
+
+            <h4 className="detail-sub">Takvim (yaklaşan)</h4>
+            {teacherDetail.slots.length === 0 ? (
+              <p className="empty">Yaklaşan ders saati yok.</p>
+            ) : (
+              <ul className="s-list detail-slots">
+                {teacherDetail.slots.map((sl) => (
+                  <li key={sl.id} className="s-row">
+                    <div>
+                      <div className="s-row-main">{formatTimeRange(sl.startTime, sl.endTime)}</div>
+                      {sl.booking && (
+                        <div className="muted small">
+                          {sl.booking.child.name}
+                          {sl.booking.topic ? ` · ${sl.booking.topic.name}` : ''}
+                        </div>
+                      )}
+                    </div>
+                    <span className={`badge ${sl.booking ? 'badge-green' : ''}`}>
+                      {sl.booking ? 'Rezerve' : 'Açık'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </Modal>
+
+      {/* ---------- Veli detay popup ---------- */}
+      <Modal
+        open={parentDetail !== null}
+        title={parentDetail ? parentDetail.parent.name : 'Veli'}
+        onClose={() => setParentDetail(null)}
+        wide
+      >
+        {parentDetail && (
+          <div className="detail-pop">
+            <div className="detail-grid">
+              <div><span className="detail-k">E-posta</span><span>{parentDetail.parent.email}</span></div>
+              <div><span className="detail-k">Telefon</span><span>{parentDetail.parent.phone ?? '—'}</span></div>
+              <div><span className="detail-k">Kayıt tarihi</span><span>{fmtDate(parentDetail.parent.createdAt)}</span></div>
+            </div>
+
+            <h4 className="detail-sub">Çocuklar ({parentDetail.parent.children.length})</h4>
+            <ul className="s-list">
+              {parentDetail.parent.children.map((c) => (
+                <li key={c.id} className="s-row">
+                  <div>
+                    <div className="s-row-main">{c.name}</div>
+                    <div className="muted small">
+                      {c.age != null ? `${c.age} yaş · ` : ''}doğum: {fmtDate(c.birthDate)}
+                    </div>
+                  </div>
+                  <span className="credit-badge">{c.credits} kredi</span>
+                </li>
+              ))}
+            </ul>
+
+            <form onSubmit={adminAddChild} className="detail-addchild">
+              <label className="field">
+                <span>Yeni çocuk adı</span>
+                <input value={acName} onChange={(e) => setAcName(e.target.value)} required minLength={2} />
+              </label>
+              <label className="field field-sm">
+                <span>Yaş</span>
+                <input
+                  inputMode="numeric"
+                  value={acAge}
+                  onChange={(e) => setAcAge(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                  required
+                />
+              </label>
+              <button className="btn btn-primary btn-sm" type="submit" disabled={acBusy}>
+                {acBusy ? 'Ekleniyor…' : 'Çocuk ekle'}
+              </button>
+            </form>
+
+            <h4 className="detail-sub">Ders geçmişi / takvimi</h4>
+            {parentDetail.bookings.length === 0 ? (
+              <p className="empty">Henüz rezervasyon yok.</p>
+            ) : (
+              <ul className="s-list detail-slots">
+                {parentDetail.bookings.map((b) => (
+                  <li key={b.id} className="s-row">
+                    <div>
+                      <div className="s-row-main">{formatTimeRange(b.slot.startTime, b.slot.endTime)}</div>
+                      <div className="muted small">
+                        {b.child.name}
+                        {b.topic ? ` · ${b.topic.name}` : ''} · Öğretmen: {b.teacher.user.name}
+                      </div>
+                    </div>
+                    <span className={`badge ${b.status === 'CANCELLED' ? 'badge-red' : ''}`}>
+                      {b.status === 'CANCELLED' ? 'İptal' : joinState(b.slot.startTime, b.slot.endTime, 0) === 'ended' ? 'Bitti' : 'Planlandı'}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </Modal>
 
       <ConfirmDialog
         open={delTopic !== null}

@@ -37,8 +37,8 @@ export interface RegisterChild {
 export interface RegisterInput {
   name: string;
   email: string;
+  phone: string;
   password: string;
-  pin: string;
   kvkkConsent: boolean;
   children: RegisterChild[];
 }
@@ -50,7 +50,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<User>;
   register: (input: RegisterInput) => Promise<User>;
   selectProfile: (childId: string) => Promise<void>;
-  unlockAccount: (pin: string) => Promise<void>;
+  unlockAccount: (password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -123,10 +123,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setSession(data.session);
   }
 
-  async function unlockAccount(pin: string) {
+  async function unlockAccount(password: string) {
     const data = await apiFetch<{ accessToken: string; session: Session }>('/api/auth/profile/unlock', {
       method: 'POST',
-      body: { pin },
+      body: { password },
     });
     setAccessToken(data.accessToken);
     setSession(data.session);

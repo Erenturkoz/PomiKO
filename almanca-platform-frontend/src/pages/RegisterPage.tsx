@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { AuthShell } from '../components/AuthShell';
 
 interface ChildRow {
   name: string;
@@ -8,17 +9,30 @@ interface ChildRow {
   birthDate: string;
 }
 
+/** Basit parola gücü: uzunluk + çeşitlilik (0-4) */
+function passStrength(p: string): number {
+  let s = 0;
+  if (p.length >= 8) s++;
+  if (p.length >= 12) s++;
+  if (/[a-zğüşöçı]/i.test(p) && /\d/.test(p)) s++;
+  if (/[^a-z0-9ğüşöçı]/i.test(p)) s++;
+  return s;
+}
+
 export function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [pin, setPin] = useState('');
+  const [showPass, setShowPass] = useState(false);
   const [kvkk, setKvkk] = useState(false);
   const [children, setChildren] = useState<ChildRow[]>([{ name: '', age: '', birthDate: '' }]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  const strength = passStrength(password);
 
   function updateChild(i: number, patch: Partial<ChildRow>) {
     setChildren((prev) => prev.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
@@ -34,8 +48,17 @@ export function RegisterPage() {
     e.preventDefault();
     setError(null);
 
-    if (!/^\d{4}$/.test(pin)) {
-      setError('PIN 4 haneli rakam olmalı');
+    const cleanPhone = phone.replace(/[\s()-]/g, '');
+    if (!/^(\+90|0)?5\d{9}$/.test(cleanPhone)) {
+      setError('Geçerli bir cep telefonu gir (örn. 05xx xxx xx xx)');
+      return;
+    }
+    if (password.length < 8) {
+      setError('Parola en az 8 karakter olmalı');
+      return;
+    }
+    if (/^\d+$/.test(password)) {
+      setError('Parola yalnızca rakamlardan oluşamaz');
       return;
     }
     if (!kvkk) {
@@ -61,10 +84,10 @@ export function RegisterPage() {
     setBusy(true);
     try {
       const user = await register({
-        name,
-        email,
+        name: name.trim(),
+        email: email.trim(),
+        phone: cleanPhone,
         password,
-        pin,
         kvkkConsent: kvkk,
         children: parsedChildren,
       });
@@ -77,114 +100,138 @@ export function RegisterPage() {
   }
 
   return (
-    <div className="auth-screen">
-      <div className="auth-card auth-card-wide">
-        <h1 className="auth-title">Veli kaydı</h1>
-        <p className="auth-subtitle">Hesabı sen yönetirsin; her çocuğun kendi profili ve kredisi olur.</p>
+    <AuthShell
+      wide
+      title="Veli hesabı oluştur"
+      subtitle="Hesabı sen yönetirsin; her çocuğun kendi profili ve kredisi olur."
+    >
+      {error && <div className="auth-alert">{error}</div>}
 
-        {error && <div className="alert alert-error">{error}</div>}
+      <form onSubmit={handleSubmit} className="auth-form">
+        <label className="auth-field">
+          <span>Ad soyad</span>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoComplete="name"
+            required
+            minLength={2}
+          />
+        </label>
 
-        <form onSubmit={handleSubmit} className="form">
-          <label className="field">
-            <span>Ad soyad</span>
-            <input value={name} onChange={(e) => setName(e.target.value)} required minLength={2} />
-          </label>
-          <label className="field">
-            <span>E-posta</span>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-          </label>
-          <label className="field">
-            <span>Parola</span>
+        <label className="auth-field">
+          <span>E-posta</span>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="ornek@eposta.com"
+            autoComplete="email"
+            required
+          />
+        </label>
+
+        <label className="auth-field">
+          <span>Cep telefonu</span>
+          <input
+            type="tel"
+            inputMode="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="05xx xxx xx xx"
+            autoComplete="tel"
+            required
+          />
+          <small className="auth-hint">Ders hatırlatmaları ve iletişim için kullanılır.</small>
+        </label>
+
+        <label className="auth-field">
+          <span>Parola</span>
+          <div className="auth-pass">
             <input
-              type="password"
+              type={showPass ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              required
+              autoComplete="new-password"
               minLength={8}
-            />
-            <small className="hint">En az 8 karakter.</small>
-          </label>
-          <label className="field">
-            <span>Veli PIN'i (4 haneli)</span>
-            <input
-              inputMode="numeric"
-              maxLength={4}
-              value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 4))}
-              placeholder="••••"
               required
             />
-            <small className="hint">Kredi yükleme ve hesap ayarlarına geçişi korur.</small>
-          </label>
-
-          <div className="reg-children">
-            <div className="reg-children-head">
-              <span>Çocuk profilleri</span>
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
-                onClick={addChild}
-                disabled={children.length >= 2}
-              >
-                + Çocuk ekle
-              </button>
-            </div>
-            <p className="muted small" style={{ margin: '0 0 8px' }}>
-              En fazla 2 çocuk ekleyebilirsin. Daha fazlası için bizimle iletişime geç.
-            </p>
-            {children.map((c, i) => (
-              <div key={i} className="reg-child-row">
-                <label className="field">
-                  <span>Ad</span>
-                  <input value={c.name} onChange={(e) => updateChild(i, { name: e.target.value })} required />
-                </label>
-                <label className="field field-sm">
-                  <span>Yaş</span>
-                  <input
-                    inputMode="numeric"
-                    value={c.age}
-                    onChange={(e) => updateChild(i, { age: e.target.value.replace(/\D/g, '').slice(0, 2) })}
-                    required
-                  />
-                </label>
-                <label className="field">
-                  <span>Doğum tarihi (isteğe bağlı)</span>
-                  <input
-                    type="date"
-                    value={c.birthDate}
-                    onChange={(e) => updateChild(i, { birthDate: e.target.value })}
-                  />
-                </label>
-                {children.length > 1 && (
-                  <button
-                    type="button"
-                    className="btn btn-ghost btn-sm reg-child-remove"
-                    onClick={() => removeChild(i)}
-                    aria-label="Kaldır"
-                  >
-                    Kaldır
-                  </button>
-                )}
-              </div>
-            ))}
+            <button
+              type="button"
+              className="auth-pass-toggle"
+              onClick={() => setShowPass((s) => !s)}
+              aria-label={showPass ? 'Parolayı gizle' : 'Parolayı göster'}
+            >
+              {showPass ? 'Gizle' : 'Göster'}
+            </button>
           </div>
+          <div className={`auth-strength s${strength}`} aria-hidden>
+            <i /><i /><i /><i />
+          </div>
+          <small className="auth-hint">
+            En az 8 karakter; harf ve rakam karışımı öneririz. Çocuk profillerinden hesaba dönüşte de
+            bu parola sorulur.
+          </small>
+        </label>
 
-          <label className="checkbox-field">
-            <input type="checkbox" checked={kvkk} onChange={(e) => setKvkk(e.target.checked)} />
-            <span>
-              Çocuğuma ait kişisel verilerin işlenmesine ilişkin KVKK aydınlatma metnini okudum ve onaylıyorum.
-            </span>
-          </label>
+        <div className="authx-children">
+          <div className="authx-children-head">
+            <span>Çocuk profilleri</span>
+            <button type="button" className="authx-add" onClick={addChild} disabled={children.length >= 2}>
+              + Çocuk ekle
+            </button>
+          </div>
+          <small className="auth-hint">
+            En fazla 2 çocuk ekleyebilirsin; daha fazlası için bizimle iletişime geç.
+          </small>
+          {children.map((c, i) => (
+            <div key={i} className="authx-child-row">
+              <label className="auth-field">
+                <span>Ad</span>
+                <input value={c.name} onChange={(e) => updateChild(i, { name: e.target.value })} required />
+              </label>
+              <label className="auth-field sm">
+                <span>Yaş</span>
+                <input
+                  inputMode="numeric"
+                  value={c.age}
+                  onChange={(e) => updateChild(i, { age: e.target.value.replace(/\D/g, '').slice(0, 2) })}
+                  required
+                />
+              </label>
+              <label className="auth-field">
+                <span>Doğum tarihi (isteğe bağlı)</span>
+                <input
+                  type="date"
+                  value={c.birthDate}
+                  onChange={(e) => updateChild(i, { birthDate: e.target.value })}
+                />
+              </label>
+              {children.length > 1 && (
+                <button type="button" className="authx-remove" onClick={() => removeChild(i)}>
+                  Kaldır
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
 
-          <button className="btn btn-primary" type="submit" disabled={busy}>
-            {busy ? 'Kaydediliyor…' : 'Hesap oluştur'}
-          </button>
-        </form>
+        <label className="auth-consent">
+          <input type="checkbox" checked={kvkk} onChange={(e) => setKvkk(e.target.checked)} />
+          <span>
+            Çocuğuma ait kişisel verilerin işlenmesine ilişkin KVKK aydınlatma metnini okudum ve
+            onaylıyorum.
+          </span>
+        </label>
 
-        <p className="auth-alt">
-          Zaten hesabın var mı? <Link to="/login">Giriş yap</Link>
-        </p>
-      </div>
-    </div>
+        <button className="auth-submit" type="submit" disabled={busy}>
+          {busy ? 'Hesap oluşturuluyor…' : 'Hesap oluştur'}
+        </button>
+      </form>
+
+      <p className="auth-alt">
+        Zaten hesabın var mı? <Link to="/login">Giriş yap</Link>
+      </p>
+    </AuthShell>
   );
 }

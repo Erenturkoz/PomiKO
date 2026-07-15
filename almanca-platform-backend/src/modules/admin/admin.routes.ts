@@ -39,6 +39,15 @@ router.post(
           create: {
             bio: data.bio,
             languages: data.languages,
+            phone: data.phone,
+            birthDate: data.birthDate ? new Date(data.birthDate) : undefined,
+            education: data.education,
+            experienceYears: data.experienceYears,
+            specialties: data.specialties,
+            iban: data.iban,
+            startDate: data.startDate ? new Date(data.startDate) : undefined,
+            adminNote: data.adminNote,
+            initialPassword: data.password, // kopyalama için; parola değişince silinecek
           },
         },
       },
@@ -333,6 +342,182 @@ router.get(
     }
 
     res.json({ logs, summary });
+  })
+);
+
+// Öğretmen detayı (özlük bilgileri + yaklaşan takvim) — popup için
+router.get(
+  '/teachers/:userId/detail',
+  asyncHandler(async (req, res) => {
+    const teacher = await prisma.user.findUnique({
+      where: { id: req.params.userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        createdAt: true,
+        teacherProfile: true,
+      },
+    });
+    if (!teacher || !teacher.teacherProfile) throw new AppError(404, 'Öğretmen bulunamadı');
+
+    const slots = await prisma.availabilitySlot.findMany({
+      where: {
+        teacherId: teacher.teacherProfile.id,
+        startTime: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+      },
+      orderBy: { startTime: 'asc' },
+      take: 40,
+      include: {
+        booking: {
+          select: {
+            id: true,
+            status: true,
+            child: { select: { name: true } },
+            topic: { select: { name: true } },
+          },
+        },
+      },
+    });
+
+    res.json({
+      teacher: {
+        id: teacher.id,
+        email: teacher.email,
+        name: teacher.name,
+        createdAt: teacher.createdAt,
+        profile: teacher.teacherProfile,
+      },
+      slots: slots.map((sl) => ({
+        id: sl.id,
+        startTime: sl.startTime,
+        endTime: sl.endTime,
+        status: sl.status,
+        booking: sl.booking && sl.booking.status !== 'CANCELLED' ? sl.booking : null,
+      })),
+    });
+  })
+);
+
+const updateTeacherSchema = createTeacherSchema.partial().omit({ password: true, email: true });
+
+// Öğretmen özlük bilgilerini güncelle
+router.put(
+  '/teachers/:userId/detail',
+  asyncHandler(async (req, res) => {
+    const data = updateTeacherSchema.parse(req.body);
+    const teacher = await prisma.user.findUnique({
+      where: { id: req.params.userId },
+      include: { teacherProfile: true },
+    });
+    if (!teacher?.teacherProfile) throw new AppError(404, 'Öğretmen bulunamadı');
+
+    if (data.name) {
+      await prisma.user.update({ where: { id: teacher.id }, data: { name: data.name } });
+    }
+    await prisma.teacherProfile.update({
+      where: { id: teacher.teacherProfile.id },
+      data: {
+        bio: data.bio,
+        phone: data.phone,
+        birthDate: data.birthDate ? new Date(data.birthDate) : undefined,
+        education: data.education,
+        experienceYears: data.experienceYears,
+        specialties: data.specialties,
+        iban: data.iban,
+        startDate: data.startDate ? new Date(data.startDate) : undefined,
+        adminNote: data.adminNote,
+      },
+    });
+    res.json({ ok: true });
+  })
+);
+
+// ============================================================
+// VELİLER — profiller, çocuklar, rezervasyonlar
+// ============================================================
+
+router.get(
+  '/parents',
+  asyncHandler(async (_req, res) => {
+    const parents = await prisma.user.findMany({
+      where: { role: Role.PARENT },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        createdAt: true,
+        children: { select: { id: true, name: true, age: true, credits: true } },
+      },
+    });
+    res.json({ parents });
+  })
+);
+
+// Veli detayı: çocuklar + tüm rezervasyonlar
+router.get(
+  '/parents/:userId/detail',
+  asyncHandler(async (req, res) => {
+    const parent = await prisma.user.findUnique({
+      where: { id: req.params.userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        createdAt: true,
+        children: { select: { id: true, name: true, age: true, birthDate: true, credits: true } },
+      },
+    });
+    if (!parent) throw new AppError(404, 'Veli bulunamadı');
+
+    const bookings = await prisma.booking.findMany({
+      where: { child: { parentUserId: parent.id } },
+      orderBy: { slot: { startTime: 'desc' } },
+      take: 60,
+      include: {
+        slot: { select: { startTime: true, endTime: true } },
+        child: { select: { name: true } },
+        teacher: { include: { user: { select: { name: true } } } },
+        topic: { select: { name: true } },
+      },
+    });
+
+    res.json({ parent, bookings });
+  })
+);
+
+const adminChildSchema = z.object({
+  name: z.string().min(2),
+  age: z.number().int().min(3).max(18),
+  birthDate: z.string().datetime().optional(),
+});
+
+// Veliye çocuk ekle (admin — 2 çocuk sınırına TAKILMAZ; 3+ durumlar bunun için)
+router.post(
+  '/parents/:userId/children',
+  asyncHandler(async (req, res) => {
+    const data = adminChildSchema.parse(req.body);
+    const parent = await prisma.user.findUnique({ where: { id: req.params.userId } });
+    if (!parent || parent.role !== Role.PARENT) throw new AppError(404, 'Veli bulunamadı');
+
+    const child = await prisma.$transaction(async (tx) => {
+      const c = await tx.childProfile.create({
+        data: {
+          parentUserId: parent.id,
+          name: data.name,
+          age: data.age,
+          birthDate: data.birthDate ? new Date(data.birthDate) : undefined,
+        },
+      });
+      await tx.consent.create({
+        data: { parentUserId: parent.id, childProfileId: c.id, consentVersion: 'kvkk-2026-01' },
+      });
+      return c;
+    });
+    res.status(201).json({ child });
   })
 );
 
