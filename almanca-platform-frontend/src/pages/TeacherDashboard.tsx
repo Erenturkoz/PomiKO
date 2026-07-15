@@ -1,0 +1,303 @@
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { apiFetch } from '../api/client';
+import { useAuth } from '../auth/AuthContext';
+import { LessonJoin } from '../components/LessonJoin';
+import { AvailabilityGrid, GridSlot } from '../components/AvailabilityGrid';
+import { startOfWeek, addWeeks, formatWeekRange } from '../lib/week';
+import { formatTimeRange, joinState } from '../lib/format';
+
+type Tab = 'home' | 'calendar' | 'lessons' | 'past';
+
+const NAV: { key: Tab; label: string; dot: string }[] = [
+  { key: 'home', label: 'Panelim', dot: '#3b5bdb' },
+  { key: 'calendar', label: 'Takvimim', dot: '#2f9e44' },
+  { key: 'lessons', label: 'Derslerim', dot: '#f08c00' },
+  { key: 'past', label: 'Geçmiş Dersler', dot: '#868e96' },
+];
+
+export function TeacherDashboard() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [tab, setTab] = useState<Tab>('home');
+  const [slots, setSlots] = useState<GridSlot[]>([]);
+  const [weekStart, setWeekStart] = useState<Date>(startOfWeek(new Date()));
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 30000);
+    return () => clearInterval(t);
+  }, []);
+
+  async function loadSlots() {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await apiFetch<{ slots: GridSlot[] }>('/api/teacher/slots');
+      setSlots(data.slots);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ders saatleri yüklenemedi');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadSlots();
+  }, []);
+
+  async function openCell(iso: string) {
+    setError(null);
+    try {
+      const { slot } = await apiFetch<{ slot: Omit<GridSlot, 'booking'> }>('/api/teacher/slots', {
+        method: 'POST',
+        body: { startTime: iso, durationMinutes: 30 },
+      });
+      setSlots((prev) => [...prev, { ...slot, booking: null }]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ders saati açılamadı');
+    }
+  }
+
+  async function closeSlot(id: string) {
+    setError(null);
+    try {
+      await apiFetch(`/api/teacher/slots/${id}`, { method: 'DELETE' });
+      setSlots((prev) => prev.filter((s) => s.id !== id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ders saati kapatılamadı');
+    }
+  }
+
+  const booked = slots.filter((s) => s.booking && s.status === 'BOOKED');
+  const openSlots = slots.filter((s) => s.status === 'OPEN' && joinState(s.startTime, s.endTime) !== 'ended');
+  const upcoming = booked
+    .filter((s) => joinState(s.startTime, s.endTime) !== 'ended')
+    .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+  const done = booked
+    .filter((s) => joinState(s.startTime, s.endTime) === 'ended')
+    .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
+  const nextLesson = upcoming[0];
+
+  function LessonRow({ s, past = false }: { s: GridSlot; past?: boolean }) {
+    return (
+      <li className="s-row">
+        <div>
+          <div className="s-row-main">{formatTimeRange(s.startTime, s.endTime)}</div>
+          <div className="muted small">
+            {s.booking?.child.name}
+            {s.booking?.topic ? ` · ${s.booking.topic.name}` : ''} (veli: {s.booking?.child.parent.name})
+          </div>
+        </div>
+        {past ? (
+          <span className="badge">Bitti</span>
+        ) : (
+          <LessonJoin
+            bookingId={s.booking!.id}
+            start={s.startTime}
+            end={s.endTime}
+            onJoin={(id) => navigate(`/room/${id}`)}
+          />
+        )}
+      </li>
+    );
+  }
+
+  function Calendar() {
+    return (
+      <div className="s-card">
+        <div className="cal-toolbar">
+          <h3 className="s-card-title" style={{ margin: 0 }}>
+            {formatWeekRange(weekStart)}
+          </h3>
+          <div className="cal-nav">
+            <button className="btn btn-ghost btn-sm" onClick={() => setWeekStart((w) => addWeeks(w, -1))}>
+              ‹ Önceki
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setWeekStart(startOfWeek(new Date()))}>
+              Bu hafta
+            </button>
+            <button className="btn btn-ghost btn-sm" onClick={() => setWeekStart((w) => addWeeks(w, 1))}>
+              Sonraki ›
+            </button>
+          </div>
+        </div>
+        <p className="muted small" style={{ marginTop: 0 }}>
+          Boş bir kareye tıkla, o yarım saatlik dilimi derse aç. Açık bir dilime tekrar tıklarsan
+          kapatırsın.
+        </p>
+        {loading ? (
+          <p className="muted">Yükleniyor…</p>
+        ) : (
+          <>
+            <AvailabilityGrid
+              weekStart={weekStart}
+              slots={slots}
+              onOpenCell={openCell}
+              onCloseSlot={closeSlot}
+            />
+            <div className="cal-legend">
+              <span>
+                <i className="dot dot-empty" /> Kapalı
+              </span>
+              <span>
+                <i className="dot dot-open" /> Açık
+              </span>
+              <span>
+                <i className="dot dot-booked" /> Rezerve
+              </span>
+              <span>
+                <i className="dot dot-done" /> Bitmiş
+              </span>
+              <span>
+                <i className="dot dot-past" /> Geçmiş
+              </span>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="student-shell">
+      {/* Sol menü */}
+      <aside className="s-side">
+        <div className="s-brand">
+          <img
+            src="/lumiko-logo.png"
+            alt="Lumiko"
+            className="s-logo"
+            onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')}
+          />
+        </div>
+        <nav className="s-nav">
+          {NAV.map((n) => (
+            <button
+              key={n.key}
+              className={`s-nav-item ${tab === n.key ? 'is-on' : ''}`}
+              onClick={() => setTab(n.key)}
+            >
+              <i className="s-nav-dot" style={{ background: n.dot }} />
+              {n.label}
+            </button>
+          ))}
+        </nav>
+        <div className="s-side-foot">
+          <button className="btn btn-ghost btn-sm" onClick={() => logout()}>
+            Çıkış yap
+          </button>
+        </div>
+      </aside>
+
+      {/* İçerik */}
+      <main className="s-main">
+        <header className="s-topline">
+          <div>
+            <h1 className="s-hello">Hoş geldin, {user?.name}! 👋</h1>
+            <p className="muted">Ders saatlerini yönet ve derslerine buradan katıl.</p>
+          </div>
+        </header>
+
+        {error && <div className="alert alert-error">{error}</div>}
+
+        {/* ---------- Panelim ---------- */}
+        {tab === 'home' && (
+          <>
+            <div className="s-stats">
+              <div className="s-stat">
+                <span className="s-stat-icon" style={{ background: '#a5d8ff' }} />
+                <div className="s-stat-num">{upcoming.length}</div>
+                <div className="s-stat-label">Yaklaşan Ders</div>
+              </div>
+              <div className="s-stat">
+                <span className="s-stat-icon" style={{ background: '#b2f2bb' }} />
+                <div className="s-stat-num">{openSlots.length}</div>
+                <div className="s-stat-label">Açık Saat</div>
+              </div>
+              <div className="s-stat">
+                <span className="s-stat-icon" style={{ background: '#ffd8a8' }} />
+                <div className="s-stat-num">{done.length}</div>
+                <div className="s-stat-label">Tamamlanan Ders</div>
+              </div>
+              <div className="s-stat">
+                <span className="s-stat-icon" style={{ background: '#d0bfff' }} />
+                <div className="s-stat-num">{booked.length}</div>
+                <div className="s-stat-label">Toplam Rezerve</div>
+              </div>
+            </div>
+
+            {nextLesson && nextLesson.booking ? (
+              <div className="s-next">
+                <div>
+                  <span className="s-next-label">Sıradaki ders</span>
+                  <div className="s-next-time">
+                    {formatTimeRange(nextLesson.startTime, nextLesson.endTime)}
+                  </div>
+                  <div className="muted small">
+                    {nextLesson.booking.child.name}
+                    {nextLesson.booking.topic ? ` · ${nextLesson.booking.topic.name}` : ''} (veli:{' '}
+                    {nextLesson.booking.child.parent.name})
+                  </div>
+                </div>
+                <LessonJoin
+                  bookingId={nextLesson.booking.id}
+                  start={nextLesson.startTime}
+                  end={nextLesson.endTime}
+                  onJoin={(id) => navigate(`/room/${id}`)}
+                />
+              </div>
+            ) : (
+              <div className="s-card">
+                <h3 className="s-card-title">Yaklaşan ders yok</h3>
+                <p className="muted">Takvimden yeni ders saatleri açabilirsin.</p>
+                <button className="btn btn-primary btn-sm" onClick={() => setTab('calendar')}>
+                  Takvimi aç
+                </button>
+              </div>
+            )}
+
+            <Calendar />
+          </>
+        )}
+
+        {/* ---------- Takvim ---------- */}
+        {tab === 'calendar' && <Calendar />}
+
+        {/* ---------- Yaklaşan dersler ---------- */}
+        {tab === 'lessons' && (
+          <div className="s-card">
+            <h3 className="s-card-title">Yaklaşan dersler ({upcoming.length})</h3>
+            {upcoming.length === 0 ? (
+              <p className="empty">Rezerve edilmiş yaklaşan dersin yok.</p>
+            ) : (
+              <ul className="s-list">
+                {upcoming.map((s) => (
+                  <LessonRow key={s.id} s={s} />
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {/* ---------- Geçmiş dersler ---------- */}
+        {tab === 'past' && (
+          <div className="s-card">
+            <h3 className="s-card-title">Geçmiş dersler ({done.length})</h3>
+            {done.length === 0 ? (
+              <p className="empty">Henüz tamamlanmış ders yok.</p>
+            ) : (
+              <ul className="s-list">
+                {done.map((s) => (
+                  <LessonRow key={s.id} s={s} past />
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}

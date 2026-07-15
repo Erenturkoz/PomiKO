@@ -1,0 +1,240 @@
+// Almanca dil öğrenme platformu - veri şeması (Bölüm 1)
+// Merkez tablo: ChildProfile. Bölüm 2 (oyun verileri) ve Bölüm 3 (okuma analizleri)
+// ileride buraya bağlanacak.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PARENT
+  TEACHER
+  ADMIN
+}
+
+enum SlotStatus {
+  OPEN
+  BOOKED
+  CANCELLED
+}
+
+enum BookingStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+// Hesap sahipleri: veli, öğretmen, admin
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         Role
+  name         String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  children       ChildProfile[]  // veli ise: alt profiller
+  teacherProfile TeacherProfile? // öğretmen ise: profil
+  consents       Consent[]
+  refreshTokens  RefreshToken[]
+
+  pinHash String? // veli PIN'i (hesap/kredi alanını korur) — Adım 2'de kapı olarak kullanılacak
+}
+
+// Veliye bağlı çocuk (alt) profilleri. Öğrenme verisinin merkezi.
+model ChildProfile {
+  id           String    @id @default(cuid())
+  parentUserId String
+  parent       User      @relation(fields: [parentUserId], references: [id], onDelete: Cascade)
+  name         String
+  age          Int?
+  birthDate    DateTime?
+  level        String? // ileride CEFR (A1, A2, ...) — şimdilik boş
+  credits      Int       @default(0) // 1 kredi = 1 ders
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  consents      Consent[]
+  bookings      Booking[]
+  creditEntries CreditEntry[]
+
+  @@index([parentUserId])
+}
+
+// Kredi hareket defteri (yükleme / harcama / iade) — denetim ve geçmiş için
+model CreditEntry {
+  id             String       @id @default(cuid())
+  childProfileId String
+  child          ChildProfile @relation(fields: [childProfileId], references: [id], onDelete: Cascade)
+  delta          Int // +yükleme, -harcama, +iade
+  reason         String // 'topup' | 'booking' | 'refund'
+  balanceAfter   Int
+  bookingId      String?
+  createdAt      DateTime     @default(now())
+
+  @@index([childProfileId])
+}
+
+// Öğretmen profili (admin tarafından oluşturulan User'a bağlı)
+model TeacherProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bio       String?
+  languages String[] // örn. ["de", "tr"]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Ana sayfa (CMS) alanları — admin panelinden yönetilir
+  showOnHome Boolean @default(false)
+  headline   String? // örn. "Çocuk Almancası Uzmanı"
+  photoUrl   String?
+  sortOrder  Int     @default(0)
+
+  availabilitySlots AvailabilitySlot[]
+  bookings          Booking[]
+}
+
+// Ana sayfa içerik blokları (hero, özellikler, seviyeler, paketler, SSS...)
+// key = blok adı, value = JSON. Esnek: yeni bölüm eklemek için tablo değişmez.
+model SiteContent {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+// Veli yorumları / referanslar
+model Testimonial {
+  id        String   @id @default(cuid())
+  name      String
+  role      String? // örn. "Mira'nın annesi"
+  text      String
+  rating    Int      @default(5)
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+// KVKK onay kaydı
+model Consent {
+  id             String       @id @default(cuid())
+  parentUserId   String
+  parent         User         @relation(fields: [parentUserId], references: [id], onDelete: Cascade)
+  childProfileId String
+  child          ChildProfile @relation(fields: [childProfileId], references: [id], onDelete: Cascade)
+  consentVersion String // hangi sözleşme metni sürümü onaylandı
+  acceptedAt     DateTime     @default(now())
+  ip             String?
+
+  @@index([childProfileId])
+}
+
+// Öğretmenin açtığı müsait ders saatleri
+model AvailabilitySlot {
+  id        String     @id @default(cuid())
+  teacherId String
+  teacher   TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  startTime DateTime
+  endTime   DateTime
+  status    SlotStatus @default(OPEN)
+  createdAt DateTime   @default(now())
+
+  booking Booking?
+
+  @@index([teacherId])
+  @@index([status])
+}
+
+// Rezervasyon (bir slota bağlı bir ders)
+model Booking {
+  id             String        @id @default(cuid())
+  slotId         String        @unique
+  slot           AvailabilitySlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  childProfileId String
+  child          ChildProfile  @relation(fields: [childProfileId], references: [id], onDelete: Cascade)
+  teacherId      String
+  teacher        TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  topicId        String?
+  topic          Topic?        @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  status         BookingStatus @default(SCHEDULED)
+  roomName       String? // Daily.co oda adı (ders odası için)
+  createdAt      DateTime      @default(now())
+
+  materials Material[]
+
+  @@index([childProfileId])
+  @@index([teacherId])
+  @@index([topicId])
+}
+
+// Ders konusu (admin ekler, veli rezervasyonda seçer). Materyal konuya bağlı.
+// İleride module/gruplama eklenecek.
+model Topic {
+  id               String   @id @default(cuid())
+  name             String
+  description      String?
+  active           Boolean  @default(true)
+  materialUrl      String? // yüklenen PDF yolu
+  materialFilename String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  bookings Booking[]
+}
+
+// Derse yüklenen materyal (PDF)
+model Material {
+  id         String   @id @default(cuid())
+  bookingId  String
+  booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  fileUrl    String
+  filename   String
+  uploadedBy String // yükleyen User id
+  createdAt  DateTime @default(now())
+
+  @@index([bookingId])
+}
+
+// Refresh token'ların hash'i (logout / rotation için)
+// mode: 'account' (veli tam yetki) | 'profile' (çocuğa kilitli, kısıtlı)
+model RefreshToken {
+  id             String   @id @default(cuid())
+  tokenHash      String   @unique
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mode           String   @default("account")
+  childProfileId String? // profile modunda aktif çocuk
+  expiresAt      DateTime
+  revoked        Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------
+// Olay kayıtları (log). "Kim, ne zaman, ne yaptı."
+// KVKK: içerik (mesaj/çizim) TUTULMAZ; IP şimdilik tutulmuyor.
+// Saklama: kısa (varsayılan 90 gün) — yayına alırken uzatılabilir.
+// ---------------------------------------------------------------
+model EventLog {
+  id             String   @id @default(cuid())
+  type           String // örn. 'room.lobby', 'room.connect', 'room.leave', 'booking.create'
+  bookingId      String?
+  userId         String?
+  childProfileId String?
+  actorName      String? // o anki görünen ad (kullanıcı silinse de kayıt anlamlı kalsın)
+  role           String? // TEACHER | PARENT | ADMIN
+  meta           Json? // ek ayrıntı (kamera durumu, süre, hata vb.)
+  createdAt      DateTime @default(now())
+
+  @@index([bookingId])
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+}
