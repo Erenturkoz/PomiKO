@@ -180,9 +180,21 @@ router.post(
         where: { id: booking.id },
         data: { status: BookingStatus.CANCELLED },
       });
+      // Eski slotu OPEN'a döndürmÜYORUZ: rezervasyon kaydı slota benzersiz bağlı
+      // olduğu için başka bir öğrenci aynı slotu bir daha alamazdı ("kayıt zaten
+      // mevcut" hatasının sebebi buydu). Bunun yerine eski slot iptal tarihçesi
+      // olarak kalır, aynı saat için YENİ ve temiz bir OPEN slot oluşturulur.
       await tx.availabilitySlot.update({
         where: { id: booking.slotId },
-        data: { status: SlotStatus.OPEN },
+        data: { status: SlotStatus.CANCELLED },
+      });
+      await tx.availabilitySlot.create({
+        data: {
+          teacherId: booking.teacherId,
+          startTime: booking.slot.startTime,
+          endTime: booking.slot.endTime,
+          status: SlotStatus.OPEN,
+        },
       });
       const c = await tx.childProfile.update({
         where: { id: booking.childProfileId },

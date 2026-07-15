@@ -1598,14 +1598,15 @@ a:hover {
 
 .profile-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
+  max-width: 760px;
 }
 .profile-card {
   background: #fff;
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 20px 16px;
+  border-radius: 14px;
+  padding: 16px 14px;
   text-align: center;
   display: flex;
   flex-direction: column;
@@ -1613,8 +1614,8 @@ a:hover {
   gap: 8px;
 }
 .profile-avatar {
-  width: 88px;
-  height: 88px;
+  width: 72px;
+  height: 72px;
   border-radius: 50%;
   border: none;
   cursor: pointer;
@@ -1680,7 +1681,7 @@ a:hover {
 
 .student-shell {
   display: grid;
-  grid-template-columns: 232px 1fr;
+  grid-template-columns: 224px 1fr;
   min-height: 100vh;
   background: #faf6ec;
 }
@@ -1688,10 +1689,10 @@ a:hover {
 .s-side {
   background: #fff;
   border-right: 1px solid #ece5d5;
-  padding: 20px 14px;
+  padding: 18px 14px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
   /* Ekranda sabit kalsın: içerik kayarken menü yerinde durur */
   position: sticky;
   top: 0;
@@ -1727,8 +1728,8 @@ a:hover {
   border: none;
   background: transparent;
   border-radius: 10px;
-  padding: 11px 12px;
-  font-size: 0.94rem;
+  padding: 10px 12px;
+  font-size: 0.92rem;
   font-weight: 550;
   color: #495057;
   cursor: pointer;
@@ -1755,7 +1756,7 @@ a:hover {
 }
 
 .s-main {
-  padding: 26px 30px 40px;
+  padding: 24px 28px 36px;
   min-width: 0;
 }
 .s-topline {
@@ -1764,20 +1765,24 @@ a:hover {
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
-  margin-bottom: 22px;
+  margin-bottom: 18px;
 }
 .s-hello {
-  margin: 0 0 4px;
-  font-size: 1.6rem;
+  margin: 0 0 3px;
+  font-size: 1.45rem;
+}
+.s-topline .muted {
+  font-size: 0.9rem;
 }
 .s-credit-chip {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   background: #fff;
   border: 1px solid #ece5d5;
   border-radius: 999px;
-  padding: 10px 18px;
+  padding: 9px 16px;
+  font-size: 0.95rem;
   font-weight: 650;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
@@ -1788,32 +1793,38 @@ a:hover {
 /* İstatistik kartları */
 .s-stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 16px;
-  margin-bottom: 20px;
+  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
 }
+/* Kompakt: ikon solda, sayı+etiket yanında — kart alçak kalır */
 .s-stat {
   background: #fff;
   border: 1px solid #ece5d5;
   border-radius: 14px;
-  padding: 16px 18px;
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 .s-stat-icon {
   display: block;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border-radius: 10px;
-  margin-bottom: 12px;
+  flex: 0 0 auto;
+  margin-bottom: 0;
 }
 .s-stat-num {
-  font-size: 1.5rem;
+  font-size: 1.35rem;
   font-weight: 750;
   line-height: 1.1;
 }
 .s-stat-label {
-  font-size: 0.84rem;
+  font-size: 0.8rem;
   color: var(--muted);
-  margin-top: 2px;
+  margin-top: 1px;
+  line-height: 1.2;
 }
 
 /* Genel kart */
@@ -1822,12 +1833,12 @@ a:hover {
   background: #fff;
   border: 1px solid #ece5d5;
   border-radius: 14px;
-  padding: 20px;
-  margin-bottom: 18px;
+  padding: 18px 20px;
+  margin-bottom: 16px;
 }
 .s-card-title {
   margin: 0 0 12px;
-  font-size: 1.02rem;
+  font-size: 1rem;
   font-weight: 700;
 }
 
@@ -1836,13 +1847,13 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 14px;
   flex-wrap: wrap;
   background: linear-gradient(135deg, #dbe7ff, #eef3ff);
   border: 1px solid #c7d8fb;
   border-radius: 14px;
-  padding: 18px 22px;
-  margin-bottom: 20px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
 }
 .s-next-label {
   font-size: 0.72rem;
@@ -1852,7 +1863,7 @@ a:hover {
   color: var(--accent);
 }
 .s-next-time {
-  font-size: 1.2rem;
+  font-size: 1.15rem;
   font-weight: 700;
   margin-top: 2px;
 }
@@ -1869,23 +1880,29 @@ a:hover {
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  padding: 12px;
+  padding: 11px 13px;
   border-radius: 10px;
   background: #fdfaf3;
   margin-bottom: 8px;
 }
 .s-row-main {
   font-weight: 600;
+  font-size: 0.95rem;
 }
 
 /* Yer tutucu bloklar */
 .s-grid-2 {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 18px;
+  gap: 14px;
 }
+/* Yer tutucu: içeriği kadar yer kaplar, boş alan bırakmaz */
 .s-soon {
-  min-height: 130px;
+  min-height: 0;
+}
+.s-soon .muted {
+  font-size: 0.9rem;
+  margin: 0;
 }
 .s-soon-pill {
   position: absolute;
@@ -2411,4 +2428,142 @@ textarea:focus {
 .hr-grid .field { margin: 0; }
 @media (max-width: 640px) {
   .detail-grid, .hr-grid { grid-template-columns: 1fr; }
+}
+
+
+/* Boş durumlar: kompakt, kutuyu şişirmesin */
+.empty {
+  margin: 0;
+  padding: 8px 0;
+  font-size: 0.88rem;
+}
+
+/* Panel içi formlar: daha sıkı dikey ritim */
+.s-main .form {
+  gap: 14px;
+  display: flex;
+  flex-direction: column;
+}
+.s-main .field {
+  margin: 0;
+}
+.s-main .field > span {
+  font-size: 0.86rem;
+}
+.s-main .field input,
+.s-main .field select,
+.s-main .field textarea {
+  padding: 10px 12px;
+  font-size: 0.95rem;
+}
+.s-main .alert {
+  padding: 10px 14px;
+  font-size: 0.9rem;
+  margin-bottom: 14px;
+}
+.hr-grid {
+  gap: 12px 14px;
+  padding: 14px;
+}
+
+/* Sayfa başlıkları (AccountHome vb.) */
+.page-head {
+  margin-bottom: 12px;
+}
+.page-head h1 {
+  font-size: 1.45rem;
+  margin: 0 0 3px;
+}
+.page-head .muted {
+  font-size: 0.9rem;
+}
+
+/* ===================================================================
+   Panel blokları: yan yana sütun düzeni
+   (form dar sütunda, liste geniş sütunda — devasa tam-genişlik
+   bloklar ve upuzun inputlar olmasın)
+   =================================================================== */
+
+/* İçerik ekranı kaplar; bloklar tam genişliğe yayılır */
+.s-main {
+  max-width: none;
+  width: 100%;
+}
+
+/* Bloklar yan yana: ekrana sığıyorsa 2 sütun, sığmıyorsa kendiliğinden
+   alt alta. Sabit dar sütun yok — ikisi de esnek büyür/küçülür. */
+.s-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr));
+  gap: 16px;
+  align-items: start;
+}
+/* Bilgi formu geniş, yan blok dar (öğretmen ayarları) — geniş ekranda 2:1 */
+@media (min-width: 1080px) {
+  .s-cols-wide-first {
+    grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+  }
+}
+.s-cols > .s-card,
+.s-cols > div > .s-card {
+  margin-bottom: 16px;
+}
+
+/* Form gönder butonları içerik kadar olsun, kart boyunca uzamasın */
+.s-main .form button[type='submit'],
+.s-main .form > .btn {
+  align-self: flex-start;
+  width: auto;
+  min-width: 150px;
+}
+
+
+/* ===================================================================
+   Ders içi kontroller — ikon butonlar
+   =================================================================== */
+.rs-controls {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 10px 0 4px;
+}
+.ctl-btn {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.1);
+  color: #eef2f7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.12s ease, border-color 0.15s ease;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.ctl-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
+}
+/* Kapalı durum: kırmızı dolgu (mik/kamera kapalı) */
+.ctl-btn.is-off {
+  background: #e03131;
+  border-color: #e03131;
+  color: #fff;
+}
+.ctl-btn.is-off:hover {
+  background: #c92a2a;
+}
+/* Ayrıl: sağ üstte, hep kırmızı */
+.ctl-leave {
+  background: #e03131;
+  border-color: #e03131;
+  color: #fff;
+  width: 100%;
+  border-radius: 14px;
+  height: 42px;
+}
+.ctl-leave:hover {
+  background: #c92a2a;
 }

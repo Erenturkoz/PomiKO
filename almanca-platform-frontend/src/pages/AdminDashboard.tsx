@@ -621,7 +621,7 @@ export function AdminDashboard() {
 
         {/* ---------- Ders konuları ---------- */}
         {tab === 'topics' && (
-          <>
+          <div className="s-cols">
             <div className="s-card">
               <h3 className="s-card-title">Yeni ders konusu</h3>
               <form onSubmit={createTopic} className="form">
@@ -672,12 +672,12 @@ export function AdminDashboard() {
                 </ul>
               )}
             </div>
-          </>
+          </div>
         )}
 
         {/* ---------- Öğretmenler ---------- */}
         {tab === 'teachers' && (
-          <>
+          <div className="s-cols">
             <div className="s-card">
               <h3 className="s-card-title">Yeni öğretmen</h3>
               <form onSubmit={createTeacher} className="form">
@@ -772,7 +772,7 @@ export function AdminDashboard() {
                 </ul>
               )}
             </div>
-          </>
+          </div>
         )}
 
         {/* ---------- Veliler ---------- */}
@@ -811,7 +811,7 @@ export function AdminDashboard() {
 
         {/* ---------- Ana sayfa (CMS) ---------- */}
         {tab === 'site' && (
-          <>
+          <div className="s-cols">
             <div className="s-card">
               <h3 className="s-card-title">Hero metinleri</h3>
               <p className="muted small" style={{ marginTop: 0 }}>
@@ -915,12 +915,12 @@ export function AdminDashboard() {
                 </ul>
               )}
             </div>
-          </>
+          </div>
         )}
 
         {/* ---------- Yorumlar ---------- */}
         {tab === 'testimonials' && (
-          <>
+          <div className="s-cols">
             <div className="s-card">
               <h3 className="s-card-title">Yeni yorum</h3>
               <form onSubmit={createTestimonial} className="form">
@@ -974,7 +974,7 @@ export function AdminDashboard() {
                 </ul>
               )}
             </div>
-          </>
+          </div>
         )}
 
         {/* ---------- Dersler (gizli izleme) ---------- */}

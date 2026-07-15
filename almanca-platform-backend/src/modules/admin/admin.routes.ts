@@ -19,6 +19,15 @@ const createTeacherSchema = z.object({
   name: z.string().min(2),
   bio: z.string().optional(),
   languages: z.array(z.string()).default(['de', 'tr']),
+  // İşe alım / özlük bilgileri (hepsi isteğe bağlı)
+  phone: z.string().max(30).optional(),
+  birthDate: z.string().datetime().optional(),
+  education: z.string().max(300).optional(),
+  experienceYears: z.number().int().min(0).max(60).optional(),
+  specialties: z.string().max(400).optional(),
+  iban: z.string().max(40).optional(),
+  startDate: z.string().datetime().optional(),
+  adminNote: z.string().max(1000).optional(),
 });
 
 // Öğretmen hesabı oluştur (yalnızca admin)
@@ -364,6 +373,7 @@ router.get(
     const slots = await prisma.availabilitySlot.findMany({
       where: {
         teacherId: teacher.teacherProfile.id,
+        status: { not: 'CANCELLED' },
         startTime: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
       },
       orderBy: { startTime: 'asc' },

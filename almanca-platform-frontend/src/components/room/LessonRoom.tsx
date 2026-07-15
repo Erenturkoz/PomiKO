@@ -11,6 +11,29 @@ interface Material {
   filename: string | null;
 }
 
+
+/* --- Kontrol ikonları (SVG) --- */
+const IcMic = ({ off = false }: { off?: boolean }) => (
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="9" y="3" width="6" height="11" rx="3" />
+    <path d="M5 11a7 7 0 0 0 14 0" />
+    <line x1="12" y1="18" x2="12" y2="21" />
+    {off && <line x1="4" y1="4" x2="20" y2="20" stroke="#fff" strokeWidth="2.4" />}
+  </svg>
+);
+const IcCam = ({ off = false }: { off?: boolean }) => (
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="6" width="12" height="12" rx="2.5" />
+    <path d="M15 10.5 21 7v10l-6-3.5" />
+    {off && <line x1="3" y1="4" x2="21" y2="20" stroke="#fff" strokeWidth="2.4" />}
+  </svg>
+);
+const IcLeave = () => (
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+    <path d="M12 9c-2.9 0-5.6.6-8 1.7-.6.3-1 .9-1 1.6v2.3c0 .8.7 1.4 1.5 1.3l3.6-.5c.7-.1 1.2-.6 1.3-1.3l.2-1.5c.8-.2 1.6-.3 2.4-.3s1.6.1 2.4.3l.2 1.5c.1.7.6 1.2 1.3 1.3l3.6.5c.8.1 1.5-.5 1.5-1.3v-2.3c0-.7-.4-1.3-1-1.6C17.6 9.6 14.9 9 12 9z" />
+  </svg>
+);
+
 interface Props {
   co: DailyCall;
   role: 'TEACHER' | 'PARENT' | 'ADMIN';
@@ -60,21 +83,26 @@ export function LessonRoom({
       <div className="rs-left">
         <VideoTile participant={teacher} label="Öğretmen" mirror={!!teacher?.local} />
         <VideoTile participant={student} label="Öğrenci" mirror={!!student?.local} />
-        <div className="rs-controls">
-          {!isObserver && (
-            <>
-              <button className={`btn btn-sm ${micOn ? 'btn-ghost' : 'btn-danger'}`} onClick={onToggleMic}>
-                {micOn ? 'Mik açık' : 'Mik kapalı'}
-              </button>
-              <button className={`btn btn-sm ${camOn ? 'btn-ghost' : 'btn-danger'}`} onClick={onToggleCam}>
-                {camOn ? 'Kamera açık' : 'Kamera kapalı'}
-              </button>
-            </>
-          )}
-          <button className="btn btn-danger btn-sm" onClick={onLeave}>
-            Ayrıl
-          </button>
-        </div>
+        {!isObserver && (
+          <div className="rs-controls">
+            <button
+              className={`ctl-btn ${micOn ? '' : 'is-off'}`}
+              onClick={onToggleMic}
+              title={micOn ? 'Mikrofonu kapat' : 'Mikrofonu aç'}
+              aria-label={micOn ? 'Mikrofonu kapat' : 'Mikrofonu aç'}
+            >
+              <IcMic off={!micOn} />
+            </button>
+            <button
+              className={`ctl-btn ${camOn ? '' : 'is-off'}`}
+              onClick={onToggleCam}
+              title={camOn ? 'Kamerayı kapat' : 'Kamerayı aç'}
+              aria-label={camOn ? 'Kamerayı kapat' : 'Kamerayı aç'}
+            >
+              <IcCam off={!camOn} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Orta: ekranı kaplayan materyal + çizim */}
@@ -97,6 +125,9 @@ export function LessonRoom({
 
       {/* Sağ: sayaç + araç kutusu */}
       <div className="rs-right">
+        <button className="ctl-btn ctl-leave" onClick={onLeave} title="Dersten ayrıl" aria-label="Dersten ayrıl">
+          <IcLeave />
+        </button>
         <div className={`lesson-timer ${urgent ? 'is-urgent' : ''}`}>
           <span className="lesson-timer-time">
             {mm}:{ss}

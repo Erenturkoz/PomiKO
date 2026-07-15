@@ -312,7 +312,7 @@ export function StudentDashboard() {
         )}
 
         {tab === 'lessons' && (
-          <>
+          <div className="s-cols">
             <div className="s-card">
               <h3 className="s-card-title">Ders al</h3>
               <div className="booking-bar">
@@ -360,6 +360,7 @@ export function StudentDashboard() {
               )}
             </div>
 
+            <div>
             <div className="s-card">
               <h3 className="s-card-title">Yaklaşan derslerim</h3>
               {upcoming.length === 0 ? (
@@ -383,7 +384,8 @@ export function StudentDashboard() {
                 </ul>
               </div>
             )}
-          </>
+            </div>
+          </div>
         )}
 
         {tab === 'tasks' && (

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { FormEvent } from 'react';
 import { apiFetch } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { LessonJoin } from '../components/LessonJoin';
@@ -7,16 +8,30 @@ import { AvailabilityGrid, GridSlot } from '../components/AvailabilityGrid';
 import { startOfWeek, addWeeks, formatWeekRange } from '../lib/week';
 import { formatTimeRange, joinState } from '../lib/format';
 
-type Tab = 'home' | 'calendar' | 'lessons' | 'past';
+type Tab = 'home' | 'calendar' | 'lessons' | 'past' | 'settings';
 
-const TABS: Tab[] = ['home', 'calendar', 'lessons', 'past'] as Tab[];
+const TABS: Tab[] = ['home', 'calendar', 'lessons', 'past', 'settings'] as Tab[];
 
 const NAV: { key: Tab; label: string; dot: string }[] = [
   { key: 'home', label: 'Panelim', dot: '#3b5bdb' },
   { key: 'calendar', label: 'Takvimim', dot: '#2f9e44' },
   { key: 'lessons', label: 'Derslerim', dot: '#f08c00' },
   { key: 'past', label: 'Geçmiş Dersler', dot: '#868e96' },
+  { key: 'settings', label: 'Ayarlar', dot: '#9775fa' },
 ];
+
+interface TeacherMe {
+  name: string;
+  email: string;
+  bio: string | null;
+  phone: string | null;
+  birthDate: string | null;
+  education: string | null;
+  experienceYears: number | null;
+  specialties: string | null;
+  iban: string | null;
+  startDate: string | null;
+}
 
 export function TeacherDashboard() {
   const { user, logout } = useAuth();
@@ -30,6 +45,19 @@ export function TeacherDashboard() {
   const [weekStart, setWeekStart] = useState<Date>(startOfWeek(new Date()));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [ok, setOk] = useState<string | null>(null);
+
+  // Ayarlar
+  const [me, setMe] = useState<TeacherMe | null>(null);
+  const [meBusy, setMeBusy] = useState(false);
+  const [pwCur, setPwCur] = useState('');
+  const [pwNew, setPwNew] = useState('');
+  const [pwBusy, setPwBusy] = useState(false);
+
+  function flash(msg: string) {
+    setOk(msg);
+    setTimeout(() => setOk(null), 2500);
+  }
 
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -53,6 +81,59 @@ export function TeacherDashboard() {
   useEffect(() => {
     loadSlots();
   }, []);
+
+  useEffect(() => {
+    if (tab !== 'settings' || me) return;
+    apiFetch<{ me: TeacherMe }>('/api/teacher/me')
+      .then((d) => setMe(d.me))
+      .catch((err) => setError(err instanceof Error ? err.message : 'Bilgiler yüklenemedi'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
+
+  async function saveMe(e: FormEvent) {
+    e.preventDefault();
+    if (!me) return;
+    setMeBusy(true);
+    setError(null);
+    try {
+      await apiFetch('/api/teacher/me', {
+        method: 'PUT',
+        body: {
+          bio: me.bio,
+          phone: me.phone,
+          birthDate: me.birthDate ? new Date(me.birthDate).toISOString() : null,
+          education: me.education,
+          experienceYears: me.experienceYears,
+          specialties: me.specialties,
+          iban: me.iban,
+        },
+      });
+      flash('Bilgilerin kaydedildi.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Kaydedilemedi');
+    } finally {
+      setMeBusy(false);
+    }
+  }
+
+  async function changePassword(e: FormEvent) {
+    e.preventDefault();
+    setPwBusy(true);
+    setError(null);
+    try {
+      await apiFetch('/api/teacher/me/password', {
+        method: 'POST',
+        body: { currentPassword: pwCur, newPassword: pwNew },
+      });
+      setPwCur('');
+      setPwNew('');
+      flash('Parolan değiştirildi.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Parola değiştirilemedi');
+    } finally {
+      setPwBusy(false);
+    }
+  }
 
   async function openCell(iso: string) {
     setError(null);
@@ -208,6 +289,7 @@ export function TeacherDashboard() {
         </header>
 
         {error && <div className="alert alert-error">{error}</div>}
+        {ok && <div className="alert alert-ok">{ok}</div>}
 
         {/* ---------- Panelim ---------- */}
         {tab === 'home' && (
@@ -301,6 +383,132 @@ export function TeacherDashboard() {
                 ))}
               </ul>
             )}
+          </div>
+        )}
+        {/* ---------- Ayarlar ---------- */}
+        {tab === 'settings' && (
+          <div className="s-cols s-cols-wide-first">
+            <div className="s-card">
+              <h3 className="s-card-title">Kişisel bilgiler</h3>
+              {!me ? (
+                <p className="muted">Yükleniyor…</p>
+              ) : (
+                <form onSubmit={saveMe} className="form">
+                  <div className="hr-grid">
+                    <label className="field">
+                      <span>Ad soyad</span>
+                      <input value={me.name} disabled />
+                    </label>
+                    <label className="field">
+                      <span>E-posta</span>
+                      <input value={me.email} disabled />
+                    </label>
+                    <label className="field">
+                      <span>Telefon</span>
+                      <input
+                        value={me.phone ?? ''}
+                        onChange={(e) => setMe({ ...me, phone: e.target.value })}
+                        placeholder="05xx…"
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Doğum tarihi</span>
+                      <input
+                        type="date"
+                        value={me.birthDate ? me.birthDate.slice(0, 10) : ''}
+                        onChange={(e) => setMe({ ...me, birthDate: e.target.value || null })}
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Deneyim (yıl)</span>
+                      <input
+                        inputMode="numeric"
+                        value={me.experienceYears ?? ''}
+                        onChange={(e) =>
+                          setMe({
+                            ...me,
+                            experienceYears: e.target.value
+                              ? Number(e.target.value.replace(/\D/g, '').slice(0, 2))
+                              : null,
+                          })
+                        }
+                      />
+                    </label>
+                    <label className="field">
+                      <span>İşe başlama</span>
+                      <input value={me.startDate ? new Date(me.startDate).toLocaleDateString('tr-TR') : '—'} disabled />
+                    </label>
+                    <label className="field detail-full">
+                      <span>Eğitim (okul / bölüm)</span>
+                      <input
+                        value={me.education ?? ''}
+                        onChange={(e) => setMe({ ...me, education: e.target.value })}
+                      />
+                    </label>
+                    <label className="field detail-full">
+                      <span>Uzmanlık alanları</span>
+                      <input
+                        value={me.specialties ?? ''}
+                        onChange={(e) => setMe({ ...me, specialties: e.target.value })}
+                      />
+                    </label>
+                    <label className="field detail-full">
+                      <span>IBAN</span>
+                      <input
+                        value={me.iban ?? ''}
+                        onChange={(e) => setMe({ ...me, iban: e.target.value })}
+                        placeholder="TR…"
+                      />
+                    </label>
+                    <label className="field detail-full">
+                      <span>Kısa tanıtım</span>
+                      <textarea
+                        rows={2}
+                        value={me.bio ?? ''}
+                        onChange={(e) => setMe({ ...me, bio: e.target.value })}
+                      />
+                    </label>
+                  </div>
+                  <button className="btn btn-primary" type="submit" disabled={meBusy}>
+                    {meBusy ? 'Kaydediliyor…' : 'Kaydet'}
+                  </button>
+                  <p className="muted small" style={{ margin: '8px 0 0' }}>
+                    Ana sayfadaki ünvan, fotoğraf ve görünürlük ayarları yönetim tarafından yapılır.
+                  </p>
+                </form>
+              )}
+            </div>
+
+            <div className="s-card">
+              <h3 className="s-card-title">Parola değiştir</h3>
+              <form onSubmit={changePassword} className="form pw-form">
+                <label className="field">
+                  <span>Mevcut parola</span>
+                  <input
+                    type="password"
+                    value={pwCur}
+                    onChange={(e) => setPwCur(e.target.value)}
+                    autoComplete="current-password"
+                    required
+                  />
+                </label>
+                <label className="field">
+                  <span>Yeni parola</span>
+                  <input
+                    type="password"
+                    value={pwNew}
+                    onChange={(e) => setPwNew(e.target.value)}
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                  />
+                  <small className="hint">En az 8 karakter; yalnızca rakam olamaz.</small>
+                </label>
+                <button className="btn btn-primary" type="submit" disabled={pwBusy}>
+                  {pwBusy ? 'Değiştiriliyor…' : 'Parolayı değiştir'}
+                </button>
+              </form>
+            </div>
           </div>
         )}
       </main>

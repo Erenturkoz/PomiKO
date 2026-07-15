@@ -168,19 +168,19 @@
   max-width: 1340px;
 }
 .lp-nav-inner {
-  max-width: 1340px;
+  max-width: 1380px;
   margin: 0 auto;
-  padding: 12px 34px;
+  padding: 18px 40px;
   display: flex;
   align-items: center;
-  gap: 34px;
+  gap: 38px;
   transition: padding 0.3s ease;
 }
 .lp-nav.is-stuck .lp-nav-inner {
-  padding: 10px 26px;
+  padding: 12px 30px;
 }
 .lp-brand { display: flex; align-items: center; gap: 9px; }
-.lp-brand-logo { height: 42px; width: auto; display: block; }
+.lp-brand-logo { height: 52px; width: auto; display: block; }
 .lp-brand-mark {
   width: 34px;
   height: 34px;
@@ -203,8 +203,8 @@
   position: relative;
   color: var(--ink-soft);
   text-decoration: none;
-  font-size: 0.9rem;
-  font-weight: 600;
+  font-size: 0.98rem;
+  font-weight: 650;
   white-space: nowrap;     /* "Sık Sorulan Sorular" alt satıra kırılmasın */
   padding: 6px 0;
   transition: color 0.16s ease;
@@ -230,13 +230,18 @@
   flex-shrink: 0;
   white-space: nowrap;
 }
-.lp-nav-cta .lp-btn { padding: 11px 22px; }
+.lp-nav-cta .lp-btn {
+  padding: 13px 26px;
+  font-size: 0.98rem;
+  box-shadow: 0 8px 22px rgba(242, 118, 75, 0.38);
+}
+.lp-nav-cta .lp-link { font-size: 0.98rem; }
 
 /* --- Hero --- */
 .lp-hero {
   position: relative;
   /* Üstte fixed menü var: hero onun altından başlar, arkası mavi görünür */
-  padding: 132px 0 50px;
+  padding: 148px 0 50px;
   background: linear-gradient(180deg, var(--sky) 0%, #e6f2fa 42%, var(--cream-soft) 100%);
   overflow: hidden; /* süslemeler (blob, yıldız) yatay taşma yapmasın */
 }
