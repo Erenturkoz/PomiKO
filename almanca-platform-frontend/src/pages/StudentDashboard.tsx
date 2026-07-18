@@ -4,6 +4,7 @@ import { apiFetch } from '../api/client';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Modal } from '../components/Modal';
 import { LessonJoin } from '../components/LessonJoin';
+import { BookingWizard } from '../components/BookingWizard';
 import { useAuth } from '../auth/AuthContext';
 import { formatTimeRange, joinState, minutesUntil } from '../lib/format';
 
@@ -12,13 +13,6 @@ interface Me {
   name: string;
   age: number | null;
   credits: number;
-}
-
-interface OpenSlot {
-  id: string;
-  startTime: string;
-  endTime: string;
-  teacher: { id: string; user: { name: string } };
 }
 
 interface Topic {
@@ -69,13 +63,11 @@ export function StudentDashboard() {
   const setTab = (t: Tab) => setSearchParams(t === 'home' ? {} : { tab: t });
 
   const [me, setMe] = useState<Me | null>(null);
-  const [openSlots, setOpenSlots] = useState<OpenSlot[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [selectedTopic, setSelectedTopic] = useState('');
   const [pendingCancelId, setPendingCancelId] = useState<string | null>(null);
 
   const [pinOpen, setPinOpen] = useState(false);
@@ -93,17 +85,14 @@ export function StudentDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const [meRes, slotRes, topicRes, bookingRes] = await Promise.all([
+      const [meRes, topicRes, bookingRes] = await Promise.all([
         apiFetch<{ child: Me }>('/api/me'),
-        apiFetch<{ slots: OpenSlot[] }>('/api/slots/open'),
         apiFetch<{ topics: Topic[] }>('/api/topics'),
         apiFetch<{ bookings: Booking[] }>('/api/bookings'),
       ]);
       setMe(meRes.child);
-      setOpenSlots(slotRes.slots);
       setTopics(topicRes.topics);
       setBookings(bookingRes.bookings);
-      setSelectedTopic((prev) => prev || topicRes.topics[0]?.id || '');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Veriler yüklenemedi');
     } finally {
@@ -115,17 +104,6 @@ export function StudentDashboard() {
     loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  async function book(slotId: string) {
-    if (!selectedTopic) return;
-    setError(null);
-    try {
-      await apiFetch('/api/bookings', { method: 'POST', body: { slotId, topicId: selectedTopic } });
-      await loadAll();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Rezervasyon yapılamadı');
-    }
-  }
 
   async function cancelBooking(id: string) {
     setError(null);
@@ -165,7 +143,6 @@ export function StudentDashboard() {
   const upcoming = activeBookings.filter((b) => joinState(b.slot.startTime, b.slot.endTime) !== 'ended');
   const done = activeBookings.filter((b) => joinState(b.slot.startTime, b.slot.endTime) === 'ended');
   const nextLesson = upcoming[0];
-  const canBook = credits >= 1 && !!selectedTopic;
 
   function canCancel(startIso: string) {
     return minutesUntil(startIso) > 30;
@@ -205,7 +182,7 @@ export function StudentDashboard() {
       {/* Sol menü */}
       <aside className="s-side">
         <div className="s-brand">
-          <img src="/lumiko-logo.png" alt="Lumiko" className="s-logo" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+          <img src="/pomiko-logo.png" alt="Pomiko" className="s-logo" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
         </div>
         <nav className="s-nav">
           {NAV.map((n) => (
@@ -301,7 +278,7 @@ export function StudentDashboard() {
 
             <div className="s-grid-2">
               <Soon
-                title="Lumiko Dünyasındaki Yolculuğun"
+                title="Pomiko Dünyasındaki Yolculuğun"
                 note="Konu haritan ve ilerlemen burada görünecek."
               />
               <Soon title="Günlük Öğrenme Serisi" note="Üst üste çalıştığın günler burada sayılacak." />
@@ -312,52 +289,10 @@ export function StudentDashboard() {
         )}
 
         {tab === 'lessons' && (
-          <div className="s-cols">
+          <div className="s-cols s-cols-wide-first">
             <div className="s-card">
               <h3 className="s-card-title">Ders al</h3>
-              <div className="booking-bar">
-                <label className="field">
-                  <span>Ders konusu</span>
-                  <select value={selectedTopic} onChange={(e) => setSelectedTopic(e.target.value)}>
-                    {topics.length === 0 && <option value="">Konu bulunamadı</option>}
-                    {topics.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-
-              {credits < 1 && (
-                <div className="alert alert-error">
-                  Kredin yok. "Hesaba dön" deyip kredi yükleyebilirsin.
-                </div>
-              )}
-
-              {loading ? (
-                <p className="muted">Yükleniyor…</p>
-              ) : openSlots.length === 0 ? (
-                <p className="empty">Şu an açık ders saati yok.</p>
-              ) : (
-                <ul className="s-list">
-                  {openSlots.map((slot) => (
-                    <li key={slot.id} className="s-row">
-                      <div>
-                        <div className="s-row-main">{formatTimeRange(slot.startTime, slot.endTime)}</div>
-                        <div className="muted small">Öğretmen: {slot.teacher.user.name}</div>
-                      </div>
-                      <button
-                        className="btn btn-primary btn-sm"
-                        onClick={() => book(slot.id)}
-                        disabled={!canBook}
-                      >
-                        Rezerve et (1 kredi)
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <BookingWizard topics={topics} credits={credits} onBooked={loadAll} />
             </div>
 
             <div>

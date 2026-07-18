@@ -24,9 +24,9 @@ export function AuthShell({
       <aside className="authx-side">
         <Link to="/" className="authx-brand">
           {logoErr ? (
-            <span className="authx-brand-text">Lumiko</span>
+            <span className="authx-brand-text">Pomiko</span>
           ) : (
-            <img src="/lumiko-logo.png" alt="Lumiko" onError={() => setLogoErr(true)} />
+            <img src="/pomiko-logo.png" alt="Pomiko" onError={() => setLogoErr(true)} />
           )}
         </Link>
         <div className="authx-side-body">

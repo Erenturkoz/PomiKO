@@ -124,7 +124,7 @@ export const STEPS: Step[] = [
   { n: 1, title: 'Ücretsiz deneme dersine başvur', text: 'Birkaç dakikada formu doldurun.' },
   { n: 2, title: 'Yaş ve seviye belirlensin', text: 'Kısa bir görüşmeyle uygun seviyeyi bulalım.' },
   { n: 3, title: 'Öğretmen ve programla eşleş', text: 'Çocuğunuza en uygun öğretmeni seçelim.' },
-  { n: 4, title: 'Öğrenme yolculuğu başlasın', text: 'Lumiko dünyasında keşfe çıkın.' },
+  { n: 4, title: 'Öğrenme yolculuğu başlasın', text: 'Pomiko dünyasında keşfe çıkın.' },
 ];
 
 export const TEACHERS: Teacher[] = [
@@ -173,7 +173,7 @@ export const PLANS: Plan[] = [
     featured: true,
   },
   {
-    name: 'Lumiko Plus',
+    name: 'Pomiko Plus',
     items: [
       'Ayda 12 canlı ders',
       'Tamamen birebir',

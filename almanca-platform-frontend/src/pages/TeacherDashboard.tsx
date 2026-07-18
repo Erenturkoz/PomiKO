@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { FormEvent } from 'react';
+import { FormEvent, ReactNode } from 'react';
 import { apiFetch } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import { LessonJoin } from '../components/LessonJoin';
@@ -19,6 +19,58 @@ const NAV: { key: Tab; label: string; dot: string }[] = [
   { key: 'past', label: 'Geçmiş Dersler', dot: '#868e96' },
   { key: 'settings', label: 'Ayarlar', dot: '#9775fa' },
 ];
+
+const AVATAR_GRADIENTS = [
+  'linear-gradient(135deg, #4dabf7, #748ffc)',
+  'linear-gradient(135deg, #51cf66, #38d9a9)',
+  'linear-gradient(135deg, #f783ac, #da77f2)',
+  'linear-gradient(135deg, #ffa94d, #ff8787)',
+  'linear-gradient(135deg, #ffd43b, #fab005)',
+  'linear-gradient(135deg, #9775fa, #748ffc)',
+];
+
+function initials(name: string) {
+  return name
+    .split(' ')
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+}
+
+// Her öğrenci her zaman aynı rengi alsın diye id'den kararlı bir renk seçilir
+function avatarColor(id: string) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % AVATAR_GRADIENTS.length;
+  return AVATAR_GRADIENTS[h];
+}
+
+// Öğrenci adı + ders konusu: listede en çok göze çarpması gereken bilgi.
+// `meta`: altında görünecek ikincil satır (saat, veli adı vb. — çağırana göre değişir).
+function StudentChip({
+  child,
+  topic,
+  meta,
+}: {
+  child: { id: string; name: string };
+  topic: { name: string } | null | undefined;
+  meta?: ReactNode;
+}) {
+  return (
+    <>
+      <span className="lesson-avatar" style={{ background: avatarColor(child.id) }}>
+        {initials(child.name)}
+      </span>
+      <div className="lesson-info">
+        <div className="lesson-info-top">
+          <span className="lesson-student">{child.name}</span>
+          {topic && <span className="topic-pill">{topic.name}</span>}
+        </div>
+        {meta && <div className="lesson-info-meta">{meta}</div>}
+      </div>
+    </>
+  );
+}
 
 interface TeacherMe {
   name: string;
@@ -169,25 +221,31 @@ export function TeacherDashboard() {
   const nextLesson = upcoming[0];
 
   function LessonRow({ s, past = false }: { s: GridSlot; past?: boolean }) {
+    const b = s.booking;
+    if (!b) return null;
     return (
-      <li className="s-row">
-        <div>
-          <div className="s-row-main">{formatTimeRange(s.startTime, s.endTime)}</div>
-          <div className="muted small">
-            {s.booking?.child.name}
-            {s.booking?.topic ? ` · ${s.booking.topic.name}` : ''} (veli: {s.booking?.child.parent.name})
-          </div>
+      <li className="lesson-row">
+        <StudentChip
+          child={b.child}
+          topic={b.topic}
+          meta={
+            <>
+              {formatTimeRange(s.startTime, s.endTime)} · veli: {b.child.parent.name}
+            </>
+          }
+        />
+        <div className="lesson-row-action">
+          {past ? (
+            <span className="badge">Bitti</span>
+          ) : (
+            <LessonJoin
+              bookingId={b.id}
+              start={s.startTime}
+              end={s.endTime}
+              onJoin={(id) => navigate(`/room/${id}`)}
+            />
+          )}
         </div>
-        {past ? (
-          <span className="badge">Bitti</span>
-        ) : (
-          <LessonJoin
-            bookingId={s.booking!.id}
-            start={s.startTime}
-            end={s.endTime}
-            onJoin={(id) => navigate(`/room/${id}`)}
-          />
-        )}
       </li>
     );
   }
@@ -254,8 +312,8 @@ export function TeacherDashboard() {
       <aside className="s-side">
         <div className="s-brand">
           <img
-            src="/lumiko-logo.png"
-            alt="Lumiko"
+            src="/pomiko-logo.png"
+            alt="Pomiko"
             className="s-logo"
             onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')}
           />
@@ -319,15 +377,17 @@ export function TeacherDashboard() {
 
             {nextLesson && nextLesson.booking ? (
               <div className="s-next">
-                <div>
+                <div className="s-next-body">
                   <span className="s-next-label">Sıradaki ders</span>
                   <div className="s-next-time">
                     {formatTimeRange(nextLesson.startTime, nextLesson.endTime)}
                   </div>
-                  <div className="muted small">
-                    {nextLesson.booking.child.name}
-                    {nextLesson.booking.topic ? ` · ${nextLesson.booking.topic.name}` : ''} (veli:{' '}
-                    {nextLesson.booking.child.parent.name})
+                  <div className="s-next-who">
+                    <StudentChip
+                      child={nextLesson.booking.child}
+                      topic={nextLesson.booking.topic}
+                      meta={<>veli: {nextLesson.booking.child.parent.name}</>}
+                    />
                   </div>
                 </div>
                 <LessonJoin

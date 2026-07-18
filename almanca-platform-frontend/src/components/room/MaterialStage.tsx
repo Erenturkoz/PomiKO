@@ -10,7 +10,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url
 ).toString();
 
-const PAGE_MSG = 'lumiko-page';
+const PAGE_MSG = 'pomiko-page';
 
 interface Props {
   co: DailyCall;

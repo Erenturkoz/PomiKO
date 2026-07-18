@@ -68,7 +68,6 @@ export function RoomPage() {
   const [micOn, setMicOn] = useState(true);
   const [camOn, setCamOn] = useState(true);
   const [tick, setTick] = useState(0); // saniyelik yeniden çizim
-  const [autoJoin, setAutoJoin] = useState(true); // ders saatinde kendiliğinden bağlan
 
   const joiningRef = useRef(false);
   const phaseRef = useRef<Phase>('loading');
@@ -180,19 +179,16 @@ export function RoomPage() {
   const untilEnd = endMs - nowMs;
   const isObserver = info?.role === 'ADMIN';
 
-  // Ders başlayınca otomatik bağlan (yalnızca "otomatik bağlan" açıksa).
-  // Admin ve test odası her zaman doğrudan bağlanır.
+  // Otomatik bağlanma YOK: öğretmen/öğrenci ders başlayınca "Derse bağlan"
+  // butonuna kendisi basar. Yalnızca admin (gizli denetim) ve test odası
+  // doğrudan bağlanır.
   useEffect(() => {
     if (!info) return;
     if (phaseRef.current !== 'lobby') return;
     if (untilEnd <= 0) return;
-    if (isTestRoom || isObserver) {
-      connect();
-      return;
-    }
-    if (autoJoin && untilStart <= 0) connect();
+    if (isTestRoom || isObserver) connect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [info, tick, autoJoin]);
+  }, [info, tick]);
 
   // Ders bitince odayı kapat
   useEffect(() => {
@@ -327,8 +323,6 @@ export function RoomPage() {
           camOn={camOn}
           joining={phase === 'joining'}
           waiting={waiting}
-          autoJoin={autoJoin}
-          onToggleAutoJoin={setAutoJoin}
           onToggleMic={toggleMic}
           onToggleCam={toggleCam}
           onJoin={connect}

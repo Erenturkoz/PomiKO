@@ -540,8 +540,8 @@ export function AdminDashboard() {
       <aside className="s-side">
         <div className="s-brand">
           <img
-            src="/lumiko-logo.png"
-            alt="Lumiko"
+            src="/pomiko-logo.png"
+            alt="Pomiko"
             className="s-logo"
             onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')}
           />

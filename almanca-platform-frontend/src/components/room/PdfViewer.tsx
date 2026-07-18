@@ -15,7 +15,7 @@ interface Props {
   isTeacher: boolean;
 }
 
-const PAGE_MSG = 'lumiko-page';
+const PAGE_MSG = 'pomiko-page';
 
 export function PdfViewer({ co, fileUrl, isTeacher }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);

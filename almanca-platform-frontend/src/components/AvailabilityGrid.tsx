@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import { TIME_ROWS, WEEKDAYS, addDays, cellKey, sameDay } from '../lib/week';
 
 export interface GridSlot {
@@ -23,6 +23,8 @@ interface Props {
 
 export function AvailabilityGrid({ weekStart, slots, onOpenCell, onCloseSlot }: Props) {
   const now = new Date();
+  // Fare hangi satırda (saatte) ise o satırı hafifçe aydınlatmak için
+  const [hoverRow, setHoverRow] = useState<string | null>(null);
 
   const slotMap = new Map<string, GridSlot>();
   for (const s of slots) {
@@ -39,74 +41,76 @@ export function AvailabilityGrid({ weekStart, slots, onOpenCell, onCloseSlot }: 
         {days.map((d, i) => (
           <div key={i} className={`cal-dayhead ${sameDay(d, now) ? 'is-today' : ''}`}>
             <span className="cal-dow">{WEEKDAYS[i]}</span>
-            <span className="cal-dom">{d.getDate()}</span>
+            <span className="cal-dom">
+              {d.getDate()}.{d.getMonth() + 1}
+            </span>
           </div>
         ))}
 
-        {TIME_ROWS.map((row) => (
-          <Fragment key={row.label}>
-            <div className="cal-time">{row.label}</div>
-            {days.map((d, i) => {
-              const cell = new Date(d);
-              cell.setHours(row.h, row.m, 0, 0);
-              const slot = slotMap.get(cellKey(cell));
-              const past = cell.getTime() <= now.getTime();
-              const isBooked = slot?.status === 'BOOKED';
-              const isOpen = slot?.status === 'OPEN';
+        {TIME_ROWS.map((row) => {
+          const rowActive = hoverRow === row.label;
+          return (
+            <Fragment key={row.label}>
+              <div className={`cal-time${rowActive ? ' is-row-active' : ''}`}>{row.label}</div>
+              {days.map((d, i) => {
+                const cell = new Date(d);
+                cell.setHours(row.h, row.m, 0, 0);
+                const slot = slotMap.get(cellKey(cell));
+                const past = cell.getTime() <= now.getTime();
+                const isBooked = slot?.status === 'BOOKED';
+                const isOpen = slot?.status === 'OPEN';
 
-              let cls = 'cal-cell';
-              let onClick: (() => void) | undefined;
-              let label = `${WEEKDAYS[i]} ${row.label}`;
+                let cls = 'cal-cell';
+                let onClick: (() => void) | undefined;
+                let label = `${WEEKDAYS[i]} ${row.label}`;
 
-              if (isBooked && past) {
-                // bitmiş ders: görünür ama tıklanamaz
-                cls += ' is-done';
-                label = `${row.label} · bitti · ${slot?.booking?.child.name ?? ''}`;
-              } else if (isBooked) {
-                cls += ' is-booked';
-                label = `${row.label} · rezerve · ${slot?.booking?.child.name ?? ''}`;
-              } else if (isOpen && !past) {
-                cls += ' is-open';
-                onClick = () => onCloseSlot(slot!.id);
-                label = `${row.label} · açık (kapatmak için tıkla)`;
-              } else if (past) {
-                cls += ' is-past';
-              } else {
-                cls += ' is-empty';
-                onClick = () => onOpenCell(cell.toISOString());
-                label = `${row.label} · aç`;
-              }
+                const b = slot?.booking;
 
-              // Baloncuk üst satırlarda aşağı açılsın (ekran dışına taşmasın)
-              const rowIdx = TIME_ROWS.indexOf(row);
-              if (rowIdx < 2) cls += ' tip-below';
+                if (isBooked && past) {
+                  // bitmiş ders: görünür ama tıklanamaz
+                  cls += ' is-done';
+                  label = `${row.label} · bitti · ${b?.child.name ?? ''}${b?.topic ? ` · ${b.topic.name}` : ''}`;
+                } else if (isBooked) {
+                  cls += ' is-booked';
+                  label = `${row.label} · rezerve · ${b?.child.name ?? ''}${b?.topic ? ` · ${b.topic.name}` : ''}`;
+                } else if (isOpen && !past) {
+                  cls += ' is-open';
+                  onClick = () => onCloseSlot(slot!.id);
+                  label = `${row.label} · açık (kapatmak için tıkla)`;
+                } else if (past) {
+                  cls += ' is-past';
+                } else {
+                  cls += ' is-empty';
+                  onClick = () => onOpenCell(cell.toISOString());
+                  label = `${row.label} · aç`;
+                }
 
-              const b = slot?.booking;
-              const showTip = !!b && (isBooked || (isBooked && past));
+                if (rowActive) cls += ' is-row-hover';
 
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  className={cls}
-                  disabled={!onClick}
-                  onClick={onClick}
-                  aria-label={label}
-                >
-                  {showTip && b && (
-                    <span className="cal-tip">
-                      <span className="cal-tip-name">{b.child.name}</span>
-                      {b.topic && <span className="cal-tip-topic">{b.topic.name}</span>}
-                      <span className="cal-tip-time">
-                        {row.label} · {past ? 'bitti' : 'rezerve'}
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    className={cls}
+                    disabled={!onClick}
+                    onClick={onClick}
+                    onMouseEnter={() => setHoverRow(row.label)}
+                    onMouseLeave={() => setHoverRow((r) => (r === row.label ? null : r))}
+                    aria-label={label}
+                    title={b ? `${b.child.name}${b.topic ? ` · ${b.topic.name}` : ''}` : undefined}
+                  >
+                    {isBooked && b && (
+                      <span className="cal-inline">
+                        <span className="cal-inline-name">{b.child.name}</span>
+                        {b.topic && <span className="cal-inline-topic">{b.topic.name}</span>}
                       </span>
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </Fragment>
-        ))}
+                    )}
+                  </button>
+                );
+              })}
+            </Fragment>
+          );
+        })}
       </div>
     </div>
   );

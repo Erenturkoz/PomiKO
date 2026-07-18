@@ -17,11 +17,11 @@ export function Layout({ children, wide = false }: { children: ReactNode; wide?:
       <header className="topbar">
         <div className="topbar-brand">
           {logoError ? (
-            <span className="brand-text">Lumiko</span>
+            <span className="brand-text">Pomiko</span>
           ) : (
             <img
-              src="/lumiko-logo.png"
-              alt="Lumiko"
+              src="/pomiko-logo.png"
+              alt="Pomiko"
               className="topbar-logo"
               onError={() => setLogoError(true)}
             />

@@ -50,14 +50,14 @@ async function loadAuthorizedBooking(
 // ============================================================
 // TEST DERSİ (GEÇİCİ — sonra bu bloğu ve frontend'deki "Test dersi"
 // butonunu silerek kaldırabilirsin). Rezervasyon/pencere kontrolü yok;
-// giriş yapan herkes sabit "lumiko-test" odasına girebilir.
+// giriş yapan herkes sabit "pomiko-test" odasına girebilir.
 // Rol: TEACHER → üst kamera, PARENT → alt kamera, ADMIN → gizli izleyici.
 // ============================================================
 router.post(
   '/test/join',
   asyncHandler(async (req, res) => {
     const role = req.user!.role;
-    const roomName = 'lumiko-test';
+    const roomName = 'pomiko-test';
     const room = await ensureRoom(roomName); // exp yok → kalıcı test odası
 
     const user = await prisma.user.findUnique({

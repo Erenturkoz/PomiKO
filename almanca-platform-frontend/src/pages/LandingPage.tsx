@@ -31,11 +31,11 @@ function Brand() {
       {err ? (
         <>
           <span className="lp-brand-mark">★</span>
-          <span className="lp-brand-text">Lumiko</span>
+          <span className="lp-brand-text">Pomiko</span>
         </>
       ) : (
-        // Logo görselinde zaten "Lumiko" yazıyor — yanına ayrıca yazı koymuyoruz
-        <img src="/lumiko-logo.png" alt="Lumiko" className="lp-brand-logo" onError={() => setErr(true)} />
+        // Logo görselinde zaten "Pomiko" yazıyor — yanına ayrıca yazı koymuyoruz
+        <img src="/pomiko-logo.png" alt="Pomiko" className="lp-brand-logo" onError={() => setErr(true)} />
       )}
     </div>
   );
@@ -141,7 +141,7 @@ export function LandingPage() {
             <Reveal variant="up" delay={160}>
               <p className="lp-lead">
                 {heroText ??
-                  "Canlı dersler, oyunlaştırılmış etkinlikler ve çocuğunuzun gelişimine özel öğrenme yolculuğu Lumiko'da bir araya geliyor."}
+                  "Canlı dersler, oyunlaştırılmış etkinlikler ve çocuğunuzun gelişimine özel öğrenme yolculuğu Pomiko'da bir araya geliyor."}
               </p>
             </Reveal>
             <Reveal variant="up" delay={240}>
@@ -150,7 +150,7 @@ export function LandingPage() {
                   Ücretsiz Deneme Dersi Al
                 </Link>
                 <a href="#why" className="lp-btn lp-btn-white lp-btn-lg">
-                  Lumiko'yu Keşfet
+                  Pomiko'yu Keşfet
                 </a>
               </div>
             </Reveal>
@@ -204,11 +204,11 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ---------- Neden Lumiko ---------- */}
+      {/* ---------- Neden Pomiko ---------- */}
       <section className="lp-sec lp-sec-cream" id="why">
         <div className="lp-wrap">
           <Reveal variant="up">
-            <p className="lp-eyebrow">NEDEN LUMIKO?</p>
+            <p className="lp-eyebrow">NEDEN POMİKO?</p>
             <h2 className="lp-h2">Sıradan bir ders platformu değil, bir öğrenme dünyası</h2>
           </Reveal>
           <div className="lp-grid-3">
@@ -298,7 +298,7 @@ export function LandingPage() {
           <Reveal variant="left">
             <div>
               <p className="lp-eyebrow lp-eyebrow-light">CANLI DERS DENEYİMİ</p>
-              <h2 className="lp-h2 lp-h2-light">Gerçek bir Lumiko dersinde neler olur?</h2>
+              <h2 className="lp-h2 lp-h2-light">Gerçek bir Pomiko dersinde neler olur?</h2>
               <p className="lp-lead lp-lead-light">
                 Öğretmen ve öğrenci ekranı, kelime kartları, mini quizler ve yıldız kazanımları tek bir
                 ekranda — çocuğunuz derse aktif olarak katılır.
@@ -517,7 +517,7 @@ export function LandingPage() {
           <div className="lp-wrap">
             <Reveal variant="up">
               <p className="lp-eyebrow">VELİLER NE DİYOR?</p>
-              <h2 className="lp-h2">Ailelerin gözünden Lumiko</h2>
+              <h2 className="lp-h2">Ailelerin gözünden Pomiko</h2>
             </Reveal>
             <div className="lp-grid-3">
               {testimonials.map((t, i) => (
@@ -603,7 +603,7 @@ export function LandingPage() {
       <section className="lp-cta">
         <Reveal variant="zoom">
           <div className="lp-wrap lp-cta-inner">
-            <h2>Çocuğunuzun Almanca Yolculuğu Lumiko ile Başlasın</h2>
+            <h2>Çocuğunuzun Almanca Yolculuğu Pomiko ile Başlasın</h2>
             <p>Yaşına, seviyesine ve ilgi alanlarına uygun öğrenme programını birlikte oluşturalım.</p>
             <Link to="/register" className="lp-btn lp-btn-white lp-btn-lg">
               Ücretsiz Deneme Dersi Planla
@@ -643,7 +643,7 @@ export function LandingPage() {
           </div>
         </div>
         <div className="lp-wrap lp-foot-bottom">
-          <span>© {new Date().getFullYear()} Lumiko. Tüm hakları saklıdır.</span>
+          <span>© {new Date().getFullYear()} Pomiko. Tüm hakları saklıdır.</span>
         </div>
       </footer>
     </div>

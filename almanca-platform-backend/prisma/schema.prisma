@@ -59,9 +59,10 @@ model ChildProfile {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  consents      Consent[]
-  bookings      Booking[]
-  creditEntries CreditEntry[]
+  consents         Consent[]
+  bookings         Booking[]
+  creditEntries    CreditEntry[]
+  favoriteTeachers TeacherFavorite[]
 
   @@index([parentUserId])
 }
@@ -113,6 +114,20 @@ model TeacherProfile {
 
   availabilitySlots AvailabilitySlot[]
   bookings          Booking[]
+  favoritedBy       TeacherFavorite[]
+}
+
+// Bir çocuğun favori işaretlediği öğretmenler (ders alma ekranındaki yıldız).
+model TeacherFavorite {
+  id             String       @id @default(cuid())
+  childProfileId String
+  child          ChildProfile @relation(fields: [childProfileId], references: [id], onDelete: Cascade)
+  teacherId      String
+  teacher        TeacherProfile @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@unique([childProfileId, teacherId])
+  @@index([childProfileId])
 }
 
 // Ana sayfa içerik blokları (hero, özellikler, seviyeler, paketler, SSS...)

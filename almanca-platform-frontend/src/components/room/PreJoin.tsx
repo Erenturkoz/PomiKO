@@ -15,8 +15,6 @@ interface Props {
   camOn: boolean;
   joining: boolean;
   waiting?: boolean; // ders henüz başlamadı
-  autoJoin?: boolean;
-  onToggleAutoJoin?: (v: boolean) => void;
   onToggleMic: () => void;
   onToggleCam: () => void;
   onJoin: () => void;
@@ -30,8 +28,6 @@ export function PreJoin({
   camOn,
   joining,
   waiting = false,
-  autoJoin = true,
-  onToggleAutoJoin,
   onToggleMic,
   onToggleCam,
   onJoin,
@@ -108,7 +104,9 @@ export function PreJoin({
     <div className="prejoin">
       <div className="prejoin-card">
         <h1 className="prejoin-title">Derse hazırlan</h1>
-        <p className="muted">Kamera ve mikrofonunu kontrol et, sonra derse bağlan.</p>
+        <p className="muted">
+          Kamera ve mikrofonunu kontrol et. Ders saati gelince "Derse bağlan" butonu açılır.
+        </p>
 
         <div className="prejoin-preview">
           <VideoTile participant={local ?? undefined} label="Sen" mirror />
@@ -155,22 +153,8 @@ export function PreJoin({
           onClick={onJoin}
           disabled={joining || waiting}
         >
-          {joining ? 'Bağlanılıyor…' : waiting ? 'Ders başlayınca bağlan' : 'Derse bağlan'}
+          {joining ? 'Bağlanılıyor…' : waiting ? 'Ders başlayınca açılır' : 'Derse bağlan'}
         </button>
-
-        <label className="autojoin">
-          <input
-            type="checkbox"
-            checked={autoJoin}
-            onChange={(e) => onToggleAutoJoin?.(e.target.checked)}
-          />
-          <span>
-            Ders saati gelince <strong>otomatik bağlan</strong>
-            <small className="hint">
-              Kapatırsan ders başlayınca "Derse bağlan" butonuna kendin basarsın.
-            </small>
-          </span>
-        </label>
       </div>
     </div>
   );

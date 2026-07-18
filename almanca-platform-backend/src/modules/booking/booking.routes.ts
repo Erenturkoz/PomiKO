@@ -25,16 +25,105 @@ router.get(
   })
 );
 
-// Rezervasyon için açık (boş, gelecekteki) ders saatleri
+// Rezervasyon için öğretmen listesi: foto, isim, tanıtım + o an açık (gelecekteki) saat sayısı
+// + aktif çocuğun bu öğretmeni favorileyip favorilemediği.
+// Öğrenci akışı önce öğretmen seçer, bu yüzden showOnHome filtresi yok — burada tüm öğretmenler görünür.
+router.get(
+  '/teachers',
+  asyncHandler(async (req, res) => {
+    const childId = req.user!.childId!;
+    const [teachers, slotCounts, favorites] = await Promise.all([
+      prisma.teacherProfile.findMany({
+        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+        include: { user: { select: { name: true } } },
+      }),
+      prisma.availabilitySlot.groupBy({
+        by: ['teacherId'],
+        where: { status: SlotStatus.OPEN, startTime: { gt: new Date() } },
+        _count: { _all: true },
+      }),
+      prisma.teacherFavorite.findMany({
+        where: { childProfileId: childId },
+        select: { teacherId: true },
+      }),
+    ]);
+    const countByTeacher = new Map(slotCounts.map((s) => [s.teacherId, s._count._all]));
+    const favoriteSet = new Set(favorites.map((f) => f.teacherId));
+    res.json({
+      teachers: teachers.map((t) => ({
+        id: t.id,
+        name: t.user.name,
+        headline: t.headline,
+        bio: t.bio,
+        photoUrl: t.photoUrl,
+        openSlotCount: countByTeacher.get(t.id) ?? 0,
+        isFavorite: favoriteSet.has(t.id),
+      })),
+    });
+  })
+);
+
+// Öğretmeni favorile / favoriden çıkar (aktif çocuk için)
+router.post(
+  '/teachers/:id/favorite',
+  asyncHandler(async (req, res) => {
+    const childId = req.user!.childId!;
+    const teacherId = req.params.id;
+    const teacher = await prisma.teacherProfile.findUnique({ where: { id: teacherId } });
+    if (!teacher) throw new AppError(404, 'Öğretmen bulunamadı');
+    await prisma.teacherFavorite.upsert({
+      where: { childProfileId_teacherId: { childProfileId: childId, teacherId } },
+      update: {},
+      create: { childProfileId: childId, teacherId },
+    });
+    res.status(201).json({ ok: true });
+  })
+);
+
+router.delete(
+  '/teachers/:id/favorite',
+  asyncHandler(async (req, res) => {
+    const childId = req.user!.childId!;
+    const teacherId = req.params.id;
+    await prisma.teacherFavorite.deleteMany({ where: { childProfileId: childId, teacherId } });
+    res.json({ ok: true });
+  })
+);
+
+// Rezervasyon için açık (boş, gelecekteki) ders saatleri — isteğe bağlı öğretmene göre filtrelenir.
+// Aktif çocuğun bu öğretmenden zaten aldığı (BOOKED) gelecekteki dersler de aynı listede döner ki
+// takvimde "senin dersin" olarak görünsün — başka çocukların rezervasyonları asla dönmez (KVKK).
 router.get(
   '/slots/open',
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
+    const teacherId =
+      typeof req.query.teacherId === 'string' && req.query.teacherId ? req.query.teacherId : undefined;
+    const childId = req.user!.childId!;
     const slots = await prisma.availabilitySlot.findMany({
-      where: { status: SlotStatus.OPEN, startTime: { gt: new Date() } },
+      where: {
+        startTime: { gt: new Date() },
+        ...(teacherId ? { teacherId } : {}),
+        OR: [
+          { status: SlotStatus.OPEN },
+          { status: SlotStatus.BOOKED, booking: { childProfileId: childId } },
+        ],
+      },
       orderBy: { startTime: 'asc' },
-      include: { teacher: { include: { user: { select: { name: true } } } } },
+      include: {
+        teacher: { include: { user: { select: { name: true } } } },
+        booking: { select: { childProfileId: true, topic: { select: { name: true } } } },
+      },
     });
-    res.json({ slots });
+    res.json({
+      slots: slots.map((s) => ({
+        id: s.id,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        status: s.status,
+        mine: s.booking?.childProfileId === childId,
+        topicName: s.booking?.topic?.name ?? null,
+      })),
+    });
   })
 );
 

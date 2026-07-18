@@ -494,101 +494,141 @@ a:hover {
 .cal-wrap {
   /* Kaydırma yok: bir haftanın tamamı tek ekranda görünür */
   overflow: visible;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border: 1px solid #ece5d5;
+  border-radius: 16px;
   background: #fff;
+  box-shadow: var(--shadow);
+  padding: 14px 16px 16px;
 }
 .cal-grid {
   display: grid;
-  grid-template-columns: 52px repeat(7, minmax(0, 1fr));
+  grid-template-columns: 58px repeat(7, minmax(0, 1fr));
+  gap: 6px 7px;
 }
+/* position:sticky yalnızca kaydırılabilir bir üst öğe (örn. .bk-cal-scroll) içindeyken
+   etkin olur — takvim kendi başına (overflow: visible) kullanıldığında etkisizdir. */
 .cal-corner {
   background: #fff;
-  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 6;
 }
 .cal-dayhead {
   background: #fff;
-  border-bottom: 1px solid var(--border);
-  border-left: 1px solid var(--border);
-  padding: 8px 0;
+  padding: 6px 0 10px;
   text-align: center;
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  align-items: center;
+  gap: 3px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
 }
 .cal-dow {
-  font-size: 0.68rem;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: 0.86rem;
+  color: var(--text);
+  font-weight: 700;
 }
 .cal-dom {
-  font-weight: 650;
-  font-size: 0.92rem;
+  font-weight: 500;
+  font-size: 0.72rem;
+  color: var(--muted);
+  line-height: 1;
 }
-.cal-dayhead.is-today {
-  background: rgba(59, 91, 219, 0.06);
-}
+.cal-dayhead.is-today .cal-dow,
 .cal-dayhead.is-today .cal-dom {
   color: var(--accent);
 }
 .cal-time {
-  background: #fff;
-  font-size: 0.66rem;
+  background: transparent;
+  font-size: 0.68rem;
   color: var(--muted);
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding-right: 7px;
-  border-top: 1px solid var(--border);
-  height: 26px;
+  padding-right: 8px;
+  height: 36px;
+  border-radius: 6px;
+  transition: background 0.12s ease, color 0.12s ease, box-shadow 0.12s ease;
+}
+/* Fare bu satırdaki bir kutunun üzerindeyken saat etiketi de hafifçe aydınlanır */
+.cal-time.is-row-active {
+  background: rgba(59, 91, 219, 0.08);
+  color: var(--accent);
+  font-weight: 700;
 }
 
-/* --- Hücreler: canlı, net renkler --- */
+/* --- Hücreler: sıcak, yumuşak, aralıklı kutular --- */
 .cal-cell {
   position: relative;
-  border-top: 1px solid #edf0f3;
-  border-left: 1px solid #edf0f3;
-  height: 26px;
-  background: #fff;
+  border: 1px solid #ece5d5;
+  border-radius: 9px;
+  height: 36px;
+  background: #fdfaf3;
   padding: 0;
   cursor: pointer;
-  transition: background 0.14s ease, transform 0.14s ease;
+  transition: background 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
 }
 .cal-cell.is-empty:hover {
-  background: #dbe4ff;
+  background: #f7edd9;
+  border-color: #e6d6b8;
 }
-/* Açık (rezervasyona hazır) — canlı mavi */
+/* Açık (rezervasyona hazır) — yumuşak mavi */
 .cal-cell.is-open {
-  background: #4dabf7;
+  background: #e2eefb;
+  border-color: #bcd8f4;
 }
 .cal-cell.is-open:hover {
-  background: #1c7ed6;
+  background: #d3e6fa;
+  border-color: #9dc6ef;
 }
-/* Rezerve edilmiş — canlı yeşil */
+/* Rezerve edilmiş — yumuşak yeşil */
 .cal-cell.is-booked {
-  background: #37b24d;
+  background: #e0f4e3;
+  border-color: #b9e2c1;
   cursor: default;
   z-index: 1;
 }
 .cal-cell.is-booked:hover {
-  background: #2f9e44;
+  background: #d2eed7;
+  border-color: #9ed7a9;
 }
-/* Bitmiş ders — soluk yeşil, çapraz tarama */
+/* Bitmiş ders — donuk, çizgi dokulu yeşil: "buradaydı ama artık geçmişte" hissi.
+   Canlı is-booked yeşilinden bilinçli olarak soluk/gri tonda, tarama dokusuyla ayrışır. */
 .cal-cell.is-done {
   background: repeating-linear-gradient(
     45deg,
-    #a9dfb8,
-    #a9dfb8 5px,
-    #c5e9cf 5px,
-    #c5e9cf 10px
+    #c5d6c0,
+    #c5d6c0 4px,
+    #dbe6d5 4px,
+    #dbe6d5 9px
   );
+  border-color: #bdd0b7;
   cursor: default;
 }
-/* Geçmiş, boş */
+/* Geçmiş / kapalı (hiç ders açılmamış geçmiş saat) — düz, nötr gri-bej.
+   is-empty'nin açık kremimden belirgin şekilde koyu; is-done'ın yeşil dokusundan renk ailesi farklı. */
 .cal-cell.is-past {
-  background: #f1f3f5;
+  background: #e9e2d2;
+  border-color: #d9cdb2;
   cursor: default;
+}
+
+/* --- Satır (saat) ipucu: fare hangi satırdaysa o satırdaki tüm kutular
+   hafifçe aydınlanır; imlecin tam üzerinde olduğu kutu ise belirgin bir
+   çerçeveyle daha güçlü vurgulanır --- */
+.cal-cell.is-row-hover::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(59, 91, 219, 0.1);
+  pointer-events: none;
+}
+.cal-cell:hover {
+  box-shadow: inset 0 0 0 2px rgba(59, 91, 219, 0.55);
+  z-index: 2;
 }
 .cal-cell:focus-visible {
   outline: 2px solid var(--accent);
@@ -596,105 +636,437 @@ a:hover {
   z-index: 3;
 }
 
-/* --- Hover baloncuğu (rezerve/bitmiş derslerde) --- */
-.cal-tip {
+/* Öğrenci rezervasyon takviminde seçilen saat */
+.cal-cell.is-selected {
+  box-shadow: inset 0 0 0 3px #fff, inset 0 0 0 5px var(--accent);
+  z-index: 3;
+}
+.cal-cell.is-selected::after {
+  content: '✓';
   position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  z-index: 20;
-  min-width: 148px;
-  max-width: 220px;
-  padding: 8px 11px;
-  border-radius: 9px;
-  background: #1c2430;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: #fff;
-  text-align: left;
+  font-size: 11px;
+  font-weight: 800;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
   pointer-events: none;
-  opacity: 0;
-  transform: translate(-50%, 4px) scale(0.96);
-  transition: opacity 0.18s ease, transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
 }
-.cal-tip::after {
-  content: '';
+
+/* --- Rezerve/bitmiş kutularda öğrenci + konu bilgisi doğrudan kutunun üstünde --- */
+.cal-inline {
   position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border: 5px solid transparent;
-  border-top-color: #1c2430;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 2px 4px;
+  pointer-events: none;
+  overflow: hidden;
 }
-.cal-cell:hover .cal-tip,
-.cal-cell:focus-visible .cal-tip {
-  opacity: 1;
-  transform: translate(-50%, 0) scale(1);
+.cal-inline-name {
+  max-width: 100%;
+  font-size: 0.66rem;
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #1c2430;
 }
-.cal-tip-name {
-  display: block;
-  font-weight: 650;
-  font-size: 0.8rem;
-  line-height: 1.25;
+.cal-inline-topic {
+  max-width: 100%;
+  font-size: 0.58rem;
+  font-weight: 550;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #52596b;
 }
-.cal-tip-topic {
-  display: block;
-  font-size: 0.74rem;
-  color: #b9c2cd;
-  margin-top: 2px;
-}
-.cal-tip-time {
-  display: block;
-  font-size: 0.7rem;
-  color: #8d97a4;
-  margin-top: 4px;
-}
-/* Üst satırlarda baloncuk aşağı açılsın (ekran dışına taşmasın) */
-.cal-cell.tip-below .cal-tip {
-  bottom: auto;
-  top: calc(100% + 8px);
-  transform: translate(-50%, -4px) scale(0.96);
-}
-.cal-cell.tip-below .cal-tip::after {
-  top: auto;
-  bottom: 100%;
-  border-top-color: transparent;
-  border-bottom-color: #1c2430;
-}
-.cal-cell.tip-below:hover .cal-tip,
-.cal-cell.tip-below:focus-visible .cal-tip {
-  transform: translate(-50%, 0) scale(1);
+.cal-cell.is-done .cal-inline-name,
+.cal-cell.is-done .cal-inline-topic {
+  color: #4d6b53;
 }
 
 .cal-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
-  margin-top: 14px;
-  font-size: 0.82rem;
+  gap: 8px;
+  margin-top: 16px;
+  font-size: 0.8rem;
   color: var(--muted);
 }
 .cal-legend span {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  padding: 5px 10px 5px 8px;
+  border-radius: 999px;
+  background: #fdfaf3;
+  border: 1px solid #ece5d5;
 }
 .dot {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 3px;
   border: 1px solid rgba(0, 0, 0, 0.08);
   display: inline-block;
 }
 .dot-empty {
-  background: #fff;
+  background: #fdfaf3;
 }
 .dot-open {
-  background: #4dabf7;
+  background: #e2eefb;
+  border-color: #bcd8f4;
 }
 .dot-booked {
-  background: #37b24d;
+  background: #e0f4e3;
+  border-color: #b9e2c1;
 }
 .dot-past {
+  background: #e9e2d2;
+  border-color: #d9cdb2;
+}
+
+/* ---------- Ders al sihirbazı (öğrenci: öğretmen → saat(ler) → konu) ---------- */
+.bk-wizard {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Arama kutusu + favori filtre çipi */
+.bk-toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.bk-search {
+  flex: 1;
+  min-width: 180px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: #fff;
+}
+.bk-search-icon {
+  font-size: 0.85rem;
+  opacity: 0.6;
+}
+.bk-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 9px 0;
+  font: inherit;
+  color: var(--text);
+}
+.bk-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+  white-space: nowrap;
+}
+.bk-filter-chip:hover {
+  border-color: var(--accent);
+}
+.bk-filter-chip.is-on {
+  background: rgba(240, 140, 0, 0.12);
+  border-color: #f08c00;
+  color: #c46a00;
+}
+
+/* Adım 1: öğretmen kartları (yükseklik sınırlı, gerekince kendi içinde kayar) */
+.bk-teacher-scroll {
+  max-height: min(56vh, 520px);
+  overflow-y: auto;
+  padding: 2px;
+  margin: 0 -2px;
+}
+.bk-teacher-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 12px;
+}
+.bk-teacher-card {
+  position: relative;
+  border-radius: 12px;
+}
+.bk-teacher-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  width: 100%;
+  /* Bir satırdaki en uzun kart neyse (grid varsayılan olarak satırı ona göre gerer),
+     bu buton o yüksekliği tam doldursun — tüm kartlar eşit boy görünsün. */
+  height: 100%;
+  justify-content: space-between;
+  padding: 16px 12px;
+  border: 1px solid #ece5d5;
+  border-radius: 12px;
+  background: #fdfaf3;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.bk-teacher-main:hover {
+  border-color: var(--accent);
+  box-shadow: 0 4px 14px rgba(59, 91, 219, 0.14);
+  transform: translateY(-1px);
+}
+.bk-teacher-fav {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: #c9ccd2;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.bk-teacher-fav:hover {
+  border-color: #f08c00;
+  transform: scale(1.08);
+}
+.bk-teacher-fav.is-on {
+  color: #f08c00;
+  border-color: #f5c16c;
+  background: #fff9ec;
+}
+.bk-teacher-photo {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #eef1f5;
+}
+.bk-teacher-initials {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+.bk-teacher-name {
+  font-weight: 650;
+  font-size: 0.92rem;
+  margin-top: 4px;
+}
+.bk-teacher-headline {
+  font-size: 0.76rem;
+  color: var(--muted);
+  line-height: 1.3;
+}
+.bk-teacher-badge {
+  margin-top: 4px;
+  font-size: 0.7rem;
+  font-weight: 650;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(47, 158, 68, 0.12);
+  color: #2f9e44;
+}
+.bk-teacher-badge.is-empty {
   background: #f1f3f5;
+  color: var(--muted);
+}
+
+/* Adım başlığı (geri linki + bağlam) */
+.bk-step-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.bk-step-title {
+  font-weight: 650;
+  font-size: 0.92rem;
+}
+.bk-week-label {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+/* Adım 2: takvim paneli — gerekince yalnızca kendi içinde kayar, sayfa değil */
+.bk-cal-scroll {
+  max-height: min(52vh, 480px);
+  overflow-y: auto;
+  border-radius: 14px;
+}
+
+/* Seçilen saat(ler) özeti + devam butonu */
+.bk-summary-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(59, 91, 219, 0.07);
+  border: 1px solid rgba(59, 91, 219, 0.18);
+  font-size: 0.88rem;
+}
+.bk-summary-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.bk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 10px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid rgba(59, 91, 219, 0.25);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.bk-chip button {
+  border: none;
+  background: #eef1f6;
+  color: var(--muted);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  line-height: 1;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.bk-chip button:hover {
+  background: #fdecec;
+  color: var(--error-text);
+}
+.bk-summary-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.bk-credit-note {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.bk-credit-note.is-warn {
+  color: #c0392b;
+  font-weight: 650;
+}
+
+/* Adım 3: her ders için tek satırlık konu seçimi */
+.bk-lesson-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.bk-lesson-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 13px;
+  border-radius: 10px;
+  background: #fdfaf3;
+  border: 1px solid var(--border);
+}
+.bk-lesson-time {
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+.bk-lesson-row select {
+  font: inherit;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  min-width: 160px;
+}
+
+/* Rezervasyon tamamlandı */
+.bk-done {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  padding: 24px 12px;
+}
+.bk-done-icon {
+  font-size: 2rem;
+  margin-bottom: 4px;
+}
+.bk-done h4 {
+  margin: 0 0 4px;
+}
+.bk-done .btn {
+  margin-top: 12px;
+}
+.bk-result-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+.bk-result-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 11px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  background: #f5f6f8;
+}
+.bk-result-list li.is-ok {
+  color: #2f9e44;
+}
+.bk-result-list li.is-fail {
+  color: #c0392b;
+  background: var(--error-bg);
 }
 
 /* ---------- Modal ---------- */
@@ -866,18 +1238,6 @@ a:hover {
   padding: 6px 12px;
   border-radius: 999px;
   white-space: nowrap;
-}
-
-.booking-bar {
-  display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin-bottom: 16px;
-}
-.booking-bar .field {
-  min-width: 240px;
-  flex: 1;
-  margin: 0;
 }
 
 /* Ders odası bağlanma/hata durumu (video kutusunun içinde) */
@@ -1258,10 +1618,30 @@ a:hover {
 .ms-page canvas {
   display: block;
 }
+.draw-layer {
+  position: absolute;
+  inset: 0;
+}
 .draw-canvas {
   position: absolute;
   inset: 0;
   cursor: crosshair;
+}
+/* Satır içi metin kutusu (popup yerine, tıklanan noktada) */
+.draw-textbox {
+  position: absolute;
+  min-width: 60px;
+  max-width: 60%;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1.5px dashed #4dabf7;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-family: sans-serif;
+  resize: none;
+  outline: none;
+  overflow: hidden;
+  white-space: pre;
+  z-index: 5;
 }
 .ms-nav {
   display: flex;
@@ -1867,6 +2247,78 @@ a:hover {
   font-weight: 700;
   margin-top: 2px;
 }
+.s-next-body {
+  min-width: 0;
+}
+.s-next-who {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+/* Öğretmen ders listesi satırı: öğrenci adı + konu en belirgin öğe olsun,
+   saat/veli ikincil, avatar rengiyle öğrenciler ilk bakışta ayırt edilsin. */
+.lesson-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 13px;
+  border-radius: 10px;
+  background: #fdfaf3;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+  transition: background 0.16s ease;
+}
+.lesson-row:hover {
+  background: #f7f2e8;
+}
+.lesson-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: -0.02em;
+}
+.lesson-info {
+  flex: 1;
+  min-width: 170px;
+}
+.lesson-info-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.lesson-student {
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--text);
+}
+.topic-pill {
+  font-size: 0.72rem;
+  font-weight: 650;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #f0edff;
+  color: #6741d9;
+  white-space: nowrap;
+}
+.lesson-info-meta {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 3px;
+}
+.lesson-row-action {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
 
 /* Listeler */
 .s-list {
@@ -1989,7 +2441,8 @@ a:hover {
 }
 
 .dot-done {
-  background: repeating-linear-gradient(45deg, #a9dfb8, #a9dfb8 3px, #c5e9cf 3px, #c5e9cf 6px);
+  background: repeating-linear-gradient(45deg, #c5d6c0, #c5d6c0 3px, #dbe6d5 3px, #dbe6d5 6px);
+  border-color: #bdd0b7;
 }
 
 /* ===================================================================
@@ -2074,7 +2527,7 @@ textarea:focus {
 
 /* Takvim kartı: haftanın tamamı sığsın diye biraz daha geniş nefes alanı */
 .s-main .cal-wrap {
-  border-radius: 12px;
+  border-radius: 16px;
 }
 .cal-toolbar {
   display: flex;
@@ -2094,7 +2547,7 @@ textarea:focus {
     overflow-x: auto;
   }
   .cal-grid {
-    min-width: 620px;
+    min-width: 660px;
   }
 }
 
@@ -2566,4 +3019,167 @@ textarea:focus {
 }
 .ctl-leave:hover {
   background: #c92a2a;
+}
+
+/* ===================================================================
+   Profil seçimi — ortalanmış (Netflix tarzı), panel diliyle uyumlu
+   =================================================================== */
+
+.ph-screen {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #faf6ec;
+}
+.ph-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 26px;
+}
+.ph-logo {
+  height: 40px;
+  width: auto;
+}
+.ph-top-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ph-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px 20px 60px;
+}
+.ph-title {
+  margin: 0 0 6px;
+  font-size: clamp(1.6rem, 3.4vw, 2.2rem);
+}
+.ph-sub {
+  margin: 0 0 34px;
+  color: var(--muted);
+}
+.ph-alert {
+  max-width: 420px;
+}
+
+/* Kartlar: her zaman ekranın ortasında; 1 profil ortada, 2+ yan yana ortalı */
+.ph-cards {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 38px;
+  flex-wrap: wrap;
+}
+.ph-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 168px;
+  transition: opacity 0.2s ease;
+}
+.ph-card.is-entering {
+  opacity: 0.65;
+}
+
+.ph-avatar {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  border-radius: 26px;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12px 28px rgba(22, 40, 60, 0.16);
+  transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.16s ease;
+  overflow: hidden;
+}
+.ph-avatar:hover:not(:disabled) {
+  transform: translateY(-5px) scale(1.03);
+  box-shadow: 0 18px 38px rgba(22, 40, 60, 0.22);
+}
+.ph-avatar:disabled {
+  cursor: default;
+}
+.ph-initials {
+  font-family: 'Baloo 2', sans-serif;
+  font-size: 2.6rem;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+/* Hover'da beliren oynat ipucu */
+.ph-enter-hint {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  color: #16283c;
+  font-size: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transform: scale(0.7);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.ph-avatar:hover .ph-enter-hint {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.ph-name {
+  font-family: 'Baloo 2', sans-serif;
+  font-weight: 700;
+  font-size: 1.12rem;
+  margin-top: 4px;
+}
+.ph-age {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-top: -4px;
+}
+.ph-credit {
+  border: 1px solid #ece5d5;
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.84rem;
+  font-weight: 650;
+  color: #5d5342;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.ph-credit:hover {
+  border-color: #f2b705;
+  box-shadow: 0 4px 12px rgba(242, 183, 5, 0.2);
+}
+.ph-credit-plus {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #f2d16b;
+  color: #fff;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+}
+.ph-foot {
+  margin-top: 44px;
 }

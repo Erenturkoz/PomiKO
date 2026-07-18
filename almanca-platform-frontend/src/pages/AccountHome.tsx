@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api/client';
-import { Layout } from '../components/Layout';
 import { Modal } from '../components/Modal';
 import { useAuth } from '../auth/AuthContext';
 
@@ -13,6 +12,12 @@ interface Child {
 }
 
 const TOPUP_OPTIONS = [1, 5, 10];
+const AVATAR_GRADIENTS = [
+  'linear-gradient(135deg, #4dabf7, #748ffc)',
+  'linear-gradient(135deg, #51cf66, #38d9a9)',
+  'linear-gradient(135deg, #f783ac, #da77f2)',
+  'linear-gradient(135deg, #ffa94d, #ff8787)',
+];
 
 function initials(name: string) {
   return name
@@ -25,12 +30,13 @@ function initials(name: string) {
 
 export function AccountHome() {
   const navigate = useNavigate();
-  const { selectProfile } = useAuth();
+  const { user, selectProfile, logout } = useAuth();
   const [children, setChildren] = useState<Child[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [topupChild, setTopupChild] = useState<Child | null>(null);
   const [entering, setEntering] = useState<string | null>(null);
+  const [logoErr, setLogoErr] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -50,6 +56,7 @@ export function AccountHome() {
   }, []);
 
   async function enterProfile(childId: string) {
+    if (entering) return;
     setEntering(childId);
     setError(null);
     try {
@@ -73,57 +80,59 @@ export function AccountHome() {
   }
 
   return (
-    <Layout>
-      <div className="page-head">
-        <h1>Profil seç</h1>
-        <p className="muted">
-          Girmek istediğin çocuğun profilini seç. Kredi yüklemesini buradan (hesap modunda) yaparsın.
-        </p>
-      </div>
+    <div className="ph-screen">
+      {/* Üst şerit: logo + veli + çıkış */}
+      <header className="ph-top">
+        {logoErr ? (
+          <span className="s-brand-text">Pomiko</span>
+        ) : (
+          <img src="/pomiko-logo.png" alt="Pomiko" className="ph-logo" onError={() => setLogoErr(true)} />
+        )}
+        <div className="ph-top-right">
+          <span className="muted small">{user?.name}</span>
+          <button className="btn btn-ghost btn-sm" onClick={() => logout()}>
+            Çıkış yap
+          </button>
+        </div>
+      </header>
 
-      {error && <div className="alert alert-error">{error}</div>}
+      {/* Orta: profil seçimi */}
+      <main className="ph-center">
+        <h1 className="ph-title">Kim ders çalışacak?</h1>
+        <p className="ph-sub">Profiline dokun ve öğrenmeye başla.</p>
 
-      {loading ? (
-        <p className="muted">Yükleniyor…</p>
-      ) : children.length === 0 ? (
-        <p className="empty">Bu hesaba bağlı çocuk profili yok. Yeni çocuk için bizimle iletişime geç.</p>
-      ) : (
-        <div className="profile-grid">
-          {children.map((c) => (
-            <div key={c.id} className="profile-card">
-              <button
-                className="profile-avatar"
-                onClick={() => enterProfile(c.id)}
-                disabled={entering !== null}
-                title={`${c.name} profiline gir`}
-              >
-                {initials(c.name)}
-              </button>
-              <div className="profile-name">{c.name}</div>
-              <div className="profile-meta">
-                {c.age != null ? `${c.age} yaş · ` : ''}
-                <span className="credit-badge">{c.credits} kredi</span>
-              </div>
-              <div className="profile-actions">
+        {error && <div className="alert alert-error ph-alert">{error}</div>}
+
+        {loading ? (
+          <p className="muted">Yükleniyor…</p>
+        ) : children.length === 0 ? (
+          <p className="empty">Bu hesaba bağlı çocuk profili yok. Yeni çocuk için bizimle iletişime geç.</p>
+        ) : (
+          <div className="ph-cards">
+            {children.map((c, i) => (
+              <div key={c.id} className={`ph-card ${entering === c.id ? 'is-entering' : ''}`}>
                 <button
-                  className="btn btn-primary btn-sm"
+                  className="ph-avatar"
+                  style={{ background: AVATAR_GRADIENTS[i % AVATAR_GRADIENTS.length] }}
                   onClick={() => enterProfile(c.id)}
                   disabled={entering !== null}
+                  aria-label={`${c.name} profiline gir`}
                 >
-                  {entering === c.id ? 'Giriliyor…' : 'Profile gir'}
+                  <span className="ph-initials">{initials(c.name)}</span>
+                  <span className="ph-enter-hint">{entering === c.id ? '…' : '▶'}</span>
                 </button>
-                <button className="btn btn-ghost btn-sm" onClick={() => setTopupChild(c)}>
-                  Kredi yükle
+                <div className="ph-name">{c.name}</div>
+                {c.age != null && <div className="ph-age">{c.age} yaş</div>}
+                <button className="ph-credit" onClick={() => setTopupChild(c)} title="Kredi yükle">
+                  ★ {c.credits} kredi <span className="ph-credit-plus">+</span>
                 </button>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
 
-      <p className="muted small" style={{ marginTop: 20 }}>
-        Daha fazla çocuk profili için bizimle iletişime geç.
-      </p>
+        <p className="ph-foot muted small">Daha fazla çocuk profili için bizimle iletişime geç.</p>
+      </main>
 
       <Modal
         open={topupChild !== null}
@@ -145,6 +154,6 @@ export function AccountHome() {
           ))}
         </div>
       </Modal>
-    </Layout>
+    </div>
   );
 }
