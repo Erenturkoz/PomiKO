@@ -26,7 +26,7 @@ async function publicSession(state: SessionState) {
   if (state.mode === 'profile' && state.childId) {
     const child = await prisma.childProfile.findUnique({
       where: { id: state.childId },
-      select: { id: true, name: true, age: true, credits: true },
+      select: { id: true, name: true, age: true, credits: true, avatarEmoji: true },
     });
     return { mode: 'profile' as const, child };
   }

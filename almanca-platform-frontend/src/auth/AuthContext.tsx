@@ -21,6 +21,7 @@ export interface ActiveChild {
   name: string;
   age: number | null;
   credits: number;
+  avatarEmoji: string | null;
 }
 
 export interface Session {

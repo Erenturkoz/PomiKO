@@ -1,18 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Modal } from '../components/Modal';
 import { LessonJoin } from '../components/LessonJoin';
+import { ToastStack } from '../components/Toast';
 import { BookingWizard } from '../components/BookingWizard';
 import { useAuth } from '../auth/AuthContext';
-import { formatTimeRange, joinState, minutesUntil } from '../lib/format';
+import { formatDate, formatTimeOnly, joinState, minutesUntil } from '../lib/format';
+import { IcBadge, IcBook, IcCalendar, IcClock, IcDashboard, IcLogout, IcSettings, IcTasks } from '../components/icons';
 
 interface Me {
   id: string;
   name: string;
   age: number | null;
   credits: number;
+  avatarEmoji: string | null;
 }
 
 interface Booking {
@@ -28,12 +31,20 @@ type Tab = 'home' | 'lessons' | 'tasks' | 'badges' | 'settings';
 
 const TABS: Tab[] = ['home', 'lessons', 'tasks', 'badges', 'settings'] as Tab[];
 
-const NAV: { key: Tab; label: string; dot: string }[] = [
-  { key: 'home', label: 'Panelim', dot: '#3b5bdb' },
-  { key: 'lessons', label: 'Derslerim', dot: '#2f9e44' },
-  { key: 'tasks', label: 'Görevler', dot: '#f08c00' },
-  { key: 'badges', label: 'Rozetlerim', dot: '#9775fa' },
-  { key: 'settings', label: 'Ayarlar', dot: '#868e96' },
+const NAV: { key: Tab; label: string; Icon: (p: { size?: number; className?: string }) => JSX.Element }[] = [
+  { key: 'home', label: 'Panelim', Icon: IcDashboard },
+  { key: 'lessons', label: 'Derslerim', Icon: IcBook },
+  { key: 'tasks', label: 'Görevler', Icon: IcTasks },
+  { key: 'badges', label: 'Rozetlerim', Icon: IcBadge },
+  { key: 'settings', label: 'Ayarlar', Icon: IcSettings },
+];
+
+// Şimdilik profil resmi yerine sabit bir emoji seti — gerçek fotoğraf yayına alınca eklenecek.
+// Backend'deki (booking.routes.ts) AVATAR_EMOJIS listesiyle birebir aynı olmalı.
+const AVATAR_EMOJIS = [
+  '🦊', '🐼', '🐵', '🐸', '🐯', '🦁', '🐶', '🐱',
+  '🐰', '🦄', '🐨', '🐧', '🦋', '🐢', '🦖', '🐳',
+  '🌟', '🚀', '⚽', '🎨', '🎸', '🍕', '🍩', '🌈',
 ];
 
 // Yakında gelecek bölümler için yer tutucu
@@ -69,11 +80,26 @@ export function StudentDashboard() {
   const [pinError, setPinError] = useState<string | null>(null);
   const [pinBusy, setPinBusy] = useState(false);
 
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const profileRef = useRef<HTMLDivElement | null>(null);
+
   const [, setTick] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setTick((n) => n + 1), 30000);
     return () => clearInterval(t);
   }, []);
+
+  useEffect(() => {
+    if (!emojiPickerOpen) return;
+    function onDocClick(e: MouseEvent) {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setEmojiPickerOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [emojiPickerOpen]);
 
   async function loadAll() {
     setLoading(true);
@@ -109,6 +135,20 @@ export function StudentDashboard() {
     }
   }
 
+  async function chooseEmoji(emoji: string) {
+    setAvatarBusy(true);
+    setError(null);
+    try {
+      await apiFetch('/api/me/avatar', { method: 'PUT', body: { emoji } });
+      setMe((prev) => (prev ? { ...prev, avatarEmoji: emoji } : prev));
+      setEmojiPickerOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Profil resmi güncellenemedi');
+    } finally {
+      setAvatarBusy(false);
+    }
+  }
+
   async function submitPin() {
     if (pin.length < 1) {
       setPinError('Parolanı gir');
@@ -128,6 +168,7 @@ export function StudentDashboard() {
 
   const credits = me?.credits ?? session.child?.credits ?? 0;
   const childName = me?.name ?? session.child?.name ?? 'Öğrenci';
+  const avatarEmoji = me?.avatarEmoji ?? session.child?.avatarEmoji ?? null;
 
   const activeBookings = bookings
     .filter((b) => b.status !== 'CANCELLED')
@@ -148,9 +189,19 @@ export function StudentDashboard() {
     return (
       <li className="s-row">
         <div>
-          <div className="s-row-main">{formatTimeRange(b.slot.startTime, b.slot.endTime)}</div>
-          <div className="muted small">
-            {b.topic ? `${b.topic.name} · ` : ''}Öğretmen: {b.teacher.user.name}
+          <div className="s-row-main">
+            {b.topic ? b.topic.name : 'Ders'}
+            <span className="muted" style={{ fontWeight: 500, marginLeft: 6 }}>
+              · Öğretmen: {b.teacher.user.name}
+            </span>
+          </div>
+          <div className="meta-icons muted small" style={{ marginTop: 4 }}>
+            <span className="meta-icon-item">
+              <IcCalendar size={13} /> {formatDate(b.slot.startTime)}
+            </span>
+            <span className="meta-icon-item">
+              <IcClock size={13} /> {formatTimeOnly(b.slot.startTime, b.slot.endTime)}
+            </span>
           </div>
         </div>
         <div className="row-actions">
@@ -180,6 +231,39 @@ export function StudentDashboard() {
         <div className="s-brand">
           <img src="/pomiko-logo.png" alt="Pomiko" className="s-logo" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
         </div>
+
+        {/* Giriş yapan çocuğun profil bloku — emoji avatarına tıklayınca değiştirilebilir */}
+        <div className="side-profile" ref={profileRef}>
+          <button
+            type="button"
+            className="side-profile-avatar-btn"
+            onClick={() => setEmojiPickerOpen((v) => !v)}
+            disabled={avatarBusy}
+            aria-label="Profil resmini değiştir"
+          >
+            <span className="side-profile-photo side-profile-emoji">{avatarEmoji ?? '🙂'}</span>
+            <span className="side-profile-edit-dot">+</span>
+          </button>
+          {emojiPickerOpen && (
+            <div className="emoji-picker-pop">
+              {AVATAR_EMOJIS.map((e) => (
+                <button
+                  key={e}
+                  type="button"
+                  className={`emoji-picker-item ${avatarEmoji === e ? 'is-on' : ''}`}
+                  onClick={() => chooseEmoji(e)}
+                >
+                  {e}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="side-profile-info">
+            <span className="side-profile-name">{childName}</span>
+            <span className="side-profile-role">Öğrenci</span>
+          </div>
+        </div>
+
         <nav className="s-nav">
           {NAV.map((n) => (
             <button
@@ -187,7 +271,7 @@ export function StudentDashboard() {
               className={`s-nav-item ${tab === n.key ? 'is-on' : ''}`}
               onClick={() => setTab(n.key)}
             >
-              <i className="s-nav-dot" style={{ background: n.dot }} />
+              <n.Icon size={17} className="s-nav-icon" />
               {n.label}
             </button>
           ))}
@@ -197,7 +281,7 @@ export function StudentDashboard() {
             Hesaba dön
           </button>
           <button className="btn btn-ghost btn-sm" onClick={() => logout()}>
-            Çıkış yap
+            <IcLogout size={15} /> Çıkış yap
           </button>
         </div>
       </aside>
@@ -214,7 +298,7 @@ export function StudentDashboard() {
           </div>
         </header>
 
-        {error && <div className="alert alert-error">{error}</div>}
+        <ToastStack error={error} onCloseError={() => setError(null)} />
 
         {tab === 'home' && (
           <>
@@ -248,7 +332,10 @@ export function StudentDashboard() {
                 <div>
                   <span className="s-next-label">Sıradaki ders</span>
                   <div className="s-next-time">
-                    {formatTimeRange(nextLesson.slot.startTime, nextLesson.slot.endTime)}
+                    <IcCalendar size={15} className="title-icon" /> {formatDate(nextLesson.slot.startTime)}
+                    <span className="s-next-time-sep">·</span>
+                    <IcClock size={15} className="title-icon" />{' '}
+                    {formatTimeOnly(nextLesson.slot.startTime, nextLesson.slot.endTime)}
                   </div>
                   <div className="muted small">
                     {nextLesson.topic ? `${nextLesson.topic.name} · ` : ''}Öğretmen:{' '}
@@ -337,10 +424,20 @@ export function StudentDashboard() {
         {tab === 'settings' && (
           <div className="s-card">
             <h3 className="s-card-title">Ayarlar</h3>
-            <p className="muted">
-              {childName}
-              {me?.age != null ? ` · ${me.age} yaş` : ''}
-            </p>
+            <div className="settings-photo-row">
+              <span className="settings-photo settings-photo-initials" style={{ fontSize: '1.6rem', background: '#fff3d6' }}>
+                {avatarEmoji ?? '🙂'}
+              </span>
+              <div>
+                <p className="muted" style={{ margin: 0 }}>
+                  {childName}
+                  {me?.age != null ? ` · ${me.age} yaş` : ''}
+                </p>
+                <p className="muted small" style={{ margin: '4px 0 0' }}>
+                  Profil resmini sol üstteki emoji simgesine tıklayarak değiştirebilirsin.
+                </p>
+              </div>
+            </div>
             <p className="muted small">
               Kredi yükleme ve profil ayarları veli hesabından yapılır.
             </p>

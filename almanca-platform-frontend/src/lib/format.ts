@@ -12,6 +12,11 @@ export function formatTimeRange(startIso: string, endIso: string): string {
   )}`;
 }
 
+// Tarih olmadan yalnızca saat aralığı — takvim ikonu + tarih, saat ikonu + bu ayrı ayrı gösterilirken kullanılır
+export function formatTimeOnly(startIso: string, endIso: string): string {
+  return `${timeFmt.format(new Date(startIso))}–${timeFmt.format(new Date(endIso))}`;
+}
+
 export function isPast(iso: string): boolean {
   return new Date(iso).getTime() <= serverNow();
 }

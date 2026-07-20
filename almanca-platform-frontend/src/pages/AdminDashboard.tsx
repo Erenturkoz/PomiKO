@@ -3,8 +3,22 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiFetch, getAccessToken, API_URL } from '../api/client';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Modal } from '../components/Modal';
+import { ToastStack } from '../components/Toast';
 import { useAuth } from '../auth/AuthContext';
-import { formatTimeRange, joinState } from '../lib/format';
+import { formatDate, formatTimeOnly, joinState } from '../lib/format';
+import {
+  IcBook,
+  IcCalendar,
+  IcClock,
+  IcDashboard,
+  IcGlobe,
+  IcGraduation,
+  IcList,
+  IcLogout,
+  IcMessage,
+  IcUsers,
+  IcWallet,
+} from '../components/icons';
 
 /* ---------------- tipler ---------------- */
 interface Teacher {
@@ -28,6 +42,18 @@ interface AdminBooking {
   slot: { startTime: string; endTime: string };
   child: { name: string; parent: { name: string } };
   teacher: { user: { name: string } };
+}
+interface PayoutRow {
+  id: string;
+  startTime: string;
+  endTime: string;
+  payoutStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
+  isReview: boolean;
+  teacherId: string;
+  teacherName: string;
+  lessonRate: number | null;
+  childName: string;
+  topicName: string | null;
 }
 interface ParentRow {
   id: string;
@@ -74,6 +100,7 @@ interface TeacherDetail {
       startDate: string | null;
       adminNote: string | null;
       initialPassword: string | null;
+      lessonRate: number | null;
     };
   };
   slots: {
@@ -113,8 +140,24 @@ interface LogRow {
   createdAt: string;
 }
 
-type Tab = 'home' | 'topics' | 'teachers' | 'parents' | 'site' | 'testimonials' | 'lessons' | 'logs';
-const TABS: Tab[] = ['home', 'topics', 'teachers', 'parents', 'site', 'testimonials', 'lessons', 'logs'];
+type Tab = 'home' | 'topics' | 'teachers' | 'payouts' | 'parents' | 'site' | 'testimonials' | 'lessons' | 'logs';
+const TABS: Tab[] = ['home', 'topics', 'teachers', 'payouts', 'parents', 'site', 'testimonials', 'lessons', 'logs'];
+
+type PayoutFilter = 'PENDING' | 'APPROVED' | 'REJECTED' | 'ALL';
+const PAYOUT_FILTERS: { key: PayoutFilter; label: string }[] = [
+  { key: 'PENDING', label: 'Onay bekleyen' },
+  { key: 'APPROVED', label: 'Onaylanan' },
+  { key: 'REJECTED', label: 'Reddedilen' },
+  { key: 'ALL', label: 'Tümü' },
+];
+
+type LessonAdminFilter = 'all' | 'live' | 'upcoming' | 'past';
+const LESSON_ADMIN_FILTERS: { key: LessonAdminFilter; label: string }[] = [
+  { key: 'all', label: 'Tümü' },
+  { key: 'live', label: 'Aktif' },
+  { key: 'upcoming', label: 'Yaklaşan' },
+  { key: 'past', label: 'Geçmiş' },
+];
 
 // Olay türleri: etiket + renk
 const EVENT_META: Record<string, { label: string; color: string }> = {
@@ -154,16 +197,27 @@ function describeMeta(l: LogRow): string | null {
   return null;
 }
 
-const NAV: { key: Tab; label: string; dot: string }[] = [
-  { key: 'home', label: 'Panel', dot: '#3b5bdb' },
-  { key: 'topics', label: 'Ders Konuları', dot: '#2f9e44' },
-  { key: 'teachers', label: 'Öğretmenler', dot: '#f08c00' },
-  { key: 'parents', label: 'Veliler', dot: '#0ca678' },
-  { key: 'site', label: 'Ana Sayfa', dot: '#9775fa' },
-  { key: 'testimonials', label: 'Yorumlar', dot: '#f06595' },
-  { key: 'lessons', label: 'Dersler', dot: '#868e96' },
-  { key: 'logs', label: 'Kayıtlar', dot: '#c92a2a' },
+const NAV: { key: Tab; label: string; Icon: (p: { size?: number; className?: string }) => JSX.Element }[] = [
+  { key: 'home', label: 'Panel', Icon: IcDashboard },
+  { key: 'topics', label: 'Ders Konuları', Icon: IcBook },
+  { key: 'teachers', label: 'Öğretmenler', Icon: IcGraduation },
+  { key: 'payouts', label: 'Ödemeler', Icon: IcWallet },
+  { key: 'parents', label: 'Veliler', Icon: IcUsers },
+  { key: 'site', label: 'Ana Sayfa', Icon: IcGlobe },
+  { key: 'testimonials', label: 'Yorumlar', Icon: IcMessage },
+  { key: 'lessons', label: 'Dersler', Icon: IcCalendar },
+  { key: 'logs', label: 'Kayıtlar', Icon: IcList },
 ];
+
+const ADMIN_AVATAR_GRADIENT = 'linear-gradient(135deg, #3b5bdb, #748ffc)';
+function adminInitials(name: string) {
+  return name
+    .split(' ')
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+}
 
 export function AdminDashboard() {
   const navigate = useNavigate();
@@ -192,6 +246,13 @@ export function AdminDashboard() {
   const [acBusy, setAcBusy] = useState(false);
   const [startSeqEdits, setStartSeqEdits] = useState<Record<string, string>>({});
   const [startSeqBusy, setStartSeqBusy] = useState<string | null>(null);
+  const [lessonRateEdit, setLessonRateEdit] = useState('');
+  const [lessonRateBusy, setLessonRateBusy] = useState(false);
+  const [payouts, setPayouts] = useState<PayoutRow[]>([]);
+  const [payoutsLoading, setPayoutsLoading] = useState(false);
+  const [payoutFilter, setPayoutFilter] = useState<PayoutFilter>('PENDING');
+  const [payoutBusy, setPayoutBusy] = useState<string | null>(null);
+  const [lessonAdminFilter, setLessonAdminFilter] = useState<LessonAdminFilter>('all');
   const [logs, setLogs] = useState<LogRow[]>([]);
   const [logTotal, setLogTotal] = useState(0);
   const [logType, setLogType] = useState('');
@@ -257,7 +318,6 @@ export function AdminDashboard() {
 
   function flash(msg: string) {
     setOk(msg);
-    setTimeout(() => setOk(null), 2500);
   }
 
   /* ---------------- öğretmen oluştur ---------------- */
@@ -590,10 +650,67 @@ export function AdminDashboard() {
     try {
       const data = await apiFetch<TeacherDetail>(`/api/admin/teachers/${userId}/detail`);
       setTeacherDetail(data);
+      setLessonRateEdit(data.teacher.profile.lessonRate != null ? String(data.teacher.profile.lessonRate) : '');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Öğretmen bilgisi alınamadı');
     } finally {
       setDetailBusy(false);
+    }
+  }
+
+  async function saveLessonRate() {
+    if (!teacherDetail) return;
+    const value = Number(lessonRateEdit);
+    if (!lessonRateEdit.trim() || !Number.isInteger(value) || value < 0) {
+      setError('Geçerli bir ders ücreti gir (0 veya üzeri tam sayı)');
+      return;
+    }
+    setLessonRateBusy(true);
+    setError(null);
+    try {
+      await apiFetch(`/api/admin/teachers/${teacherDetail.teacher.id}/detail`, {
+        method: 'PUT',
+        body: { lessonRate: value },
+      });
+      flash('Ders ücreti güncellendi.');
+      await openTeacherDetail(teacherDetail.teacher.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Güncellenemedi');
+    } finally {
+      setLessonRateBusy(false);
+    }
+  }
+
+  async function loadPayouts(status: PayoutFilter = payoutFilter) {
+    setPayoutsLoading(true);
+    setError(null);
+    try {
+      const qs = status === 'ALL' ? '' : `?status=${status}`;
+      const data = await apiFetch<{ bookings: PayoutRow[] }>(`/api/admin/payouts${qs}`);
+      setPayouts(data.bookings);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ödemeler yüklenemedi');
+    } finally {
+      setPayoutsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (tab === 'payouts') loadPayouts(payoutFilter);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, payoutFilter]);
+
+  async function overridePayout(bookingId: string, status: 'PENDING' | 'APPROVED' | 'REJECTED') {
+    setPayoutBusy(bookingId);
+    setError(null);
+    try {
+      await apiFetch(`/api/admin/payouts/${bookingId}`, { method: 'PUT', body: { payoutStatus: status } });
+      flash('Ödeme durumu güncellendi.');
+      await loadPayouts(payoutFilter);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Güncellenemedi');
+    } finally {
+      setPayoutBusy(null);
     }
   }
 
@@ -692,6 +809,18 @@ export function AdminDashboard() {
             onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')}
           />
         </div>
+
+        {/* Giriş yapan yöneticinin profil bloku */}
+        <div className="side-profile">
+          <span className="side-profile-photo side-profile-initials" style={{ background: ADMIN_AVATAR_GRADIENT }}>
+            {adminInitials(user?.name ?? '?')}
+          </span>
+          <div className="side-profile-info">
+            <span className="side-profile-name">{user?.name}</span>
+            <span className="side-profile-role">Yönetici</span>
+          </div>
+        </div>
+
         <nav className="s-nav">
           {NAV.map((n) => (
             <button
@@ -699,14 +828,14 @@ export function AdminDashboard() {
               className={`s-nav-item ${tab === n.key ? 'is-on' : ''}`}
               onClick={() => setTab(n.key)}
             >
-              <i className="s-nav-dot" style={{ background: n.dot }} />
+              <n.Icon size={17} className="s-nav-icon" />
               {n.label}
             </button>
           ))}
         </nav>
         <div className="s-side-foot">
           <button className="btn btn-ghost btn-sm" onClick={() => logout()}>
-            Çıkış yap
+            <IcLogout size={15} /> Çıkış yap
           </button>
         </div>
       </aside>
@@ -720,8 +849,7 @@ export function AdminDashboard() {
           </div>
         </header>
 
-        {error && <div className="alert alert-error">{error}</div>}
-        {ok && <div className="alert alert-ok">{ok}</div>}
+        <ToastStack ok={ok} error={error} onCloseOk={() => setOk(null)} onCloseError={() => setError(null)} />
 
         {/* ---------- Panel ---------- */}
         {tab === 'home' && (
@@ -1221,88 +1349,178 @@ export function AdminDashboard() {
         )}
 
         {/* ---------- Dersler (gizli izleme) ---------- */}
+        {/* ---------- Ödemeler ---------- */}
+        {tab === 'payouts' && (
+          <div className="s-card">
+            <h3 className="s-card-title">Ödeme incelemesi</h3>
+            <p className="muted small" style={{ marginTop: 0 }}>
+              Tamamlanan bir ders, hem öğretmenin hem velinin derse gerçekten bağlandığına dair kanıt
+              bulununca otomatik onaylanır. Kanıt eksikse "onay bekliyor" durumunda kalır — burada elle
+              onaylayabilir veya reddedebilirsin. Otomatik onay hiçbir zaman elle reddedilmiş bir dersi
+              geri çevirmez.
+            </p>
+            <div className="filter-chips">
+              {PAYOUT_FILTERS.map((f) => (
+                <button
+                  key={f.key}
+                  type="button"
+                  className={`filter-chip ${payoutFilter === f.key ? 'is-on' : ''}`}
+                  onClick={() => setPayoutFilter(f.key)}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+            {payoutsLoading ? (
+              <p className="muted">Yükleniyor…</p>
+            ) : payouts.length === 0 ? (
+              <p className="empty">Bu filtreye uyan tamamlanmış ders yok.</p>
+            ) : (
+              <ul className="s-list">
+                {payouts.map((p) => (
+                  <li key={p.id} className="s-row">
+                    <div>
+                      <div className="meta-icons s-row-main">
+                        <span className="meta-icon-item">
+                          <IcCalendar size={14} /> {formatDate(p.startTime)}
+                        </span>
+                        <span className="meta-icon-item">
+                          <IcClock size={14} /> {formatTimeOnly(p.startTime, p.endTime)}
+                        </span>
+                        {p.isReview && <span className="badge badge-warn">Tekrar</span>}
+                      </div>
+                      <div className="muted small">
+                        {p.childName} · Öğretmen: {p.teacherName}
+                        {p.topicName ? ` · ${p.topicName}` : ''} · Ücret:{' '}
+                        {p.lessonRate != null ? `₺${p.lessonRate}` : 'atanmadı'}
+                      </div>
+                    </div>
+                    <div className="row-actions">
+                      <span
+                        className={`badge payout-badge ${
+                          p.payoutStatus === 'APPROVED'
+                            ? 'payout-approved'
+                            : p.payoutStatus === 'REJECTED'
+                            ? 'payout-rejected'
+                            : 'payout-pending'
+                        }`}
+                      >
+                        {p.payoutStatus === 'APPROVED'
+                          ? 'Onaylandı'
+                          : p.payoutStatus === 'REJECTED'
+                          ? 'Reddedildi'
+                          : 'Onay bekliyor'}
+                      </span>
+                      {p.payoutStatus !== 'APPROVED' && (
+                        <button
+                          className="btn btn-primary btn-sm"
+                          disabled={payoutBusy === p.id}
+                          onClick={() => overridePayout(p.id, 'APPROVED')}
+                        >
+                          Onayla
+                        </button>
+                      )}
+                      {p.payoutStatus !== 'REJECTED' && (
+                        <button
+                          className="btn btn-danger btn-sm"
+                          disabled={payoutBusy === p.id}
+                          onClick={() => overridePayout(p.id, 'REJECTED')}
+                        >
+                          Reddet
+                        </button>
+                      )}
+                      {p.payoutStatus !== 'PENDING' && (
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          disabled={payoutBusy === p.id}
+                          onClick={() => overridePayout(p.id, 'PENDING')}
+                        >
+                          Bekliyor yap
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
         {tab === 'lessons' && (() => {
           // Aktif = ders fiilen başlamış ve bitmemiş (lobi penceresi sayılmaz)
-          const live = bookings.filter(
-            (b) => joinState(b.slot.startTime, b.slot.endTime, 0) === 'open'
-          );
-          const upcoming = bookings.filter(
-            (b) => joinState(b.slot.startTime, b.slot.endTime, 0) === 'future'
-          );
-          const past = bookings
-            .filter((b) => joinState(b.slot.startTime, b.slot.endTime) === 'ended')
-            .reverse();
+          const live = bookings.filter((b) => joinState(b.slot.startTime, b.slot.endTime, 0) === 'open');
+          const upcoming = bookings.filter((b) => joinState(b.slot.startTime, b.slot.endTime, 0) === 'future');
+          const past = [...bookings.filter((b) => joinState(b.slot.startTime, b.slot.endTime) === 'ended')].reverse();
+          const filtered =
+            lessonAdminFilter === 'live'
+              ? live
+              : lessonAdminFilter === 'upcoming'
+              ? upcoming
+              : lessonAdminFilter === 'past'
+              ? past
+              : [...live, ...upcoming, ...past];
+          const countFor = (k: LessonAdminFilter) =>
+            k === 'all' ? bookings.length : k === 'live' ? live.length : k === 'upcoming' ? upcoming.length : past.length;
           return (
-            <>
-              <div className="s-card">
-                <h3 className="s-card-title">Aktif dersler ({live.length})</h3>
-                <p className="muted small" style={{ marginTop: 0 }}>
-                  Yalnızca şu an devam eden dersler denetlenebilir. Denetimde görünmez ve duyulmaz
-                  olarak izlersin.
-                </p>
-                {live.length === 0 ? (
-                  <p className="empty">Şu an devam eden ders yok.</p>
-                ) : (
-                  <ul className="s-list">
-                    {live.map((b) => (
+            <div className="s-card">
+              <h3 className="s-card-title">Dersler</h3>
+              <p className="muted small" style={{ marginTop: 0 }}>
+                Yalnızca şu an devam eden dersler denetlenebilir. Denetimde görünmez ve duyulmaz olarak
+                izlersin.
+              </p>
+              <div className="filter-chips">
+                {LESSON_ADMIN_FILTERS.map((f) => (
+                  <button
+                    key={f.key}
+                    type="button"
+                    className={`filter-chip ${lessonAdminFilter === f.key ? 'is-on' : ''}`}
+                    onClick={() => setLessonAdminFilter(f.key)}
+                  >
+                    {f.label} <span className="filter-chip-count">{countFor(f.key)}</span>
+                  </button>
+                ))}
+              </div>
+              {filtered.length === 0 ? (
+                <p className="empty">Bu filtreye uyan ders yok.</p>
+              ) : (
+                <ul className="s-list">
+                  {filtered.map((b) => {
+                    const state = joinState(b.slot.startTime, b.slot.endTime, 0);
+                    return (
                       <li key={b.id} className="s-row">
                         <div>
                           <div className="s-row-main">
-                            <span className="live-dot" /> {formatTimeRange(b.slot.startTime, b.slot.endTime)}
+                            {state === 'open' && <span className="live-dot" style={{ marginRight: 6 }} />}
+                            {b.child.name}
+                            <span className="muted" style={{ fontWeight: 500, marginLeft: 6 }}>
+                              · Öğretmen: {b.teacher.user.name}
+                            </span>
                           </div>
-                          <div className="muted small">
-                            {b.child.name} (veli: {b.child.parent.name}) · Öğretmen: {b.teacher.user.name}
-                          </div>
-                        </div>
-                        <button className="btn btn-primary btn-sm" onClick={() => navigate(`/room/${b.id}`)}>
-                          Denetle
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              {upcoming.length > 0 && (
-                <div className="s-card">
-                  <h3 className="s-card-title">Yaklaşan dersler ({upcoming.length})</h3>
-                  <ul className="s-list">
-                    {upcoming.map((b) => (
-                      <li key={b.id} className="s-row">
-                        <div>
-                          <div className="s-row-main">{formatTimeRange(b.slot.startTime, b.slot.endTime)}</div>
-                          <div className="muted small">
-                            {b.child.name} (veli: {b.child.parent.name}) · Öğretmen: {b.teacher.user.name}
+                          <div className="meta-icons muted small" style={{ marginTop: 4 }}>
+                            <span className="meta-icon-item">
+                              <IcCalendar size={13} /> {formatDate(b.slot.startTime)}
+                            </span>
+                            <span className="meta-icon-item">
+                              <IcClock size={13} /> {formatTimeOnly(b.slot.startTime, b.slot.endTime)}
+                            </span>
+                            <span>veli: {b.child.parent.name}</span>
                           </div>
                         </div>
-                        <span className="badge">Planlandı</span>
+                        {state === 'open' ? (
+                          <button className="btn btn-primary btn-sm" onClick={() => navigate(`/room/${b.id}`)}>
+                            Denetle
+                          </button>
+                        ) : state === 'future' ? (
+                          <span className="badge">Planlandı</span>
+                        ) : (
+                          <span className="badge">Bitti</span>
+                        )}
                       </li>
-                    ))}
-                  </ul>
-                </div>
+                    );
+                  })}
+                </ul>
               )}
-
-              <div className="s-card">
-                <h3 className="s-card-title">Geçmiş dersler ({past.length})</h3>
-                {past.length === 0 ? (
-                  <p className="empty">Henüz tamamlanmış ders yok.</p>
-                ) : (
-                  <ul className="s-list">
-                    {past.map((b) => (
-                      <li key={b.id} className="s-row">
-                        <div>
-                          <div className="s-row-main">{formatTimeRange(b.slot.startTime, b.slot.endTime)}</div>
-                          <div className="muted small">
-                            {b.child.name} (veli: {b.child.parent.name}) · Öğretmen: {b.teacher.user.name}
-                          </div>
-                        </div>
-                        <span className="badge">Bitti</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </>
+            </div>
           );
         })()}
         {/* ---------- Kayıtlar ---------- */}
@@ -1446,6 +1664,28 @@ export function AdminDashboard() {
               </button>
             </div>
 
+            <div className="detail-cred">
+              <div>
+                <span className="detail-k">Ders ücreti</span>
+                <div className="muted small">
+                  Ders başına ödenecek tutar (TL). Ödemeler sekmesindeki kazanç hesaplamasında kullanılır.
+                </div>
+              </div>
+              <div className="child-seq-fields">
+                <label className="field field-sm">
+                  <span>₺</span>
+                  <input
+                    inputMode="numeric"
+                    value={lessonRateEdit}
+                    onChange={(e) => setLessonRateEdit(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  />
+                </label>
+                <button className="btn btn-ghost btn-sm" onClick={saveLessonRate} disabled={lessonRateBusy}>
+                  {lessonRateBusy ? 'Kaydediliyor…' : 'Kaydet'}
+                </button>
+              </div>
+            </div>
+
             <h4 className="detail-sub">Takvim (yaklaşan)</h4>
             {teacherDetail.slots.length === 0 ? (
               <p className="empty">Yaklaşan ders saati yok.</p>
@@ -1454,7 +1694,14 @@ export function AdminDashboard() {
                 {teacherDetail.slots.map((sl) => (
                   <li key={sl.id} className="s-row">
                     <div>
-                      <div className="s-row-main">{formatTimeRange(sl.startTime, sl.endTime)}</div>
+                      <div className="meta-icons s-row-main">
+                        <span className="meta-icon-item">
+                          <IcCalendar size={14} /> {formatDate(sl.startTime)}
+                        </span>
+                        <span className="meta-icon-item">
+                          <IcClock size={14} /> {formatTimeOnly(sl.startTime, sl.endTime)}
+                        </span>
+                      </div>
                       {sl.booking && (
                         <div className="muted small">
                           {sl.booking.child.name}
@@ -1556,7 +1803,14 @@ export function AdminDashboard() {
                 {parentDetail.bookings.map((b) => (
                   <li key={b.id} className="s-row">
                     <div>
-                      <div className="s-row-main">{formatTimeRange(b.slot.startTime, b.slot.endTime)}</div>
+                      <div className="meta-icons s-row-main">
+                        <span className="meta-icon-item">
+                          <IcCalendar size={14} /> {formatDate(b.slot.startTime)}
+                        </span>
+                        <span className="meta-icon-item">
+                          <IcClock size={14} /> {formatTimeOnly(b.slot.startTime, b.slot.endTime)}
+                        </span>
+                      </div>
                       <div className="muted small">
                         {b.child.name}
                         {b.topic ? ` · ${b.topic.name}` : ''} · Öğretmen: {b.teacher.user.name}

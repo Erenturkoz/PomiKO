@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { Role, Prisma } from '@prisma/client';
+import { Role, Prisma, BookingStatus, PayoutStatus } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { hashPassword } from '../../lib/password';
 import { asyncHandler, AppError } from '../../lib/errors';
@@ -8,6 +8,7 @@ import { authenticate } from '../../middleware/auth';
 import { requireRole } from '../../middleware/roles';
 import { uploadPdf, uploadImage } from '../../lib/upload';
 import { logEvent } from '../../lib/eventlog';
+import { evaluatePayouts } from '../payout/payout.service';
 
 const router = Router();
 
@@ -29,6 +30,7 @@ const createTeacherSchema = z.object({
   iban: z.string().max(40).optional(),
   startDate: z.string().datetime().optional(),
   adminNote: z.string().max(1000).optional(),
+  lessonRate: z.number().int().min(0).max(100000).optional(),
 });
 
 // Öğretmen hesabı oluştur (yalnızca admin)
@@ -57,6 +59,7 @@ router.post(
             iban: data.iban,
             startDate: data.startDate ? new Date(data.startDate) : undefined,
             adminNote: data.adminNote,
+            lessonRate: data.lessonRate,
             initialPassword: data.password, // kopyalama için; parola değişince silinecek
           },
         },
@@ -575,8 +578,95 @@ router.put(
         iban: data.iban,
         startDate: data.startDate ? new Date(data.startDate) : undefined,
         adminNote: data.adminNote,
+        lessonRate: data.lessonRate,
       },
     });
+
+    if (data.lessonRate !== undefined) {
+      logEvent({
+        type: 'payout.rate_set',
+        userId: req.user!.id,
+        actorName: teacher.name,
+        role: 'ADMIN',
+        meta: { teacherProfileId: teacher.teacherProfile.id, lessonRate: data.lessonRate },
+      });
+    }
+
+    res.json({ ok: true });
+  })
+);
+
+// ============================================================
+// ÖDEMELER — tamamlanan derslerin ücret durumu
+// Otomatik değerlendirme "önce kırmızı (PENDING), incele, sonra yeşil (APPROVED)"
+// prensibiyle çalışır (bkz. payout.service.ts). Admin her zaman elle düzeltebilir.
+// ============================================================
+
+const PAYOUT_STATUSES = ['PENDING', 'APPROVED', 'REJECTED'] as const;
+
+router.get(
+  '/payouts',
+  asyncHandler(async (req, res) => {
+    await evaluatePayouts(); // tüm öğretmenler için otomatik değerlendirmeyi tazele
+
+    const statusParam = typeof req.query.status === 'string' ? req.query.status : undefined;
+    const status = (PAYOUT_STATUSES as readonly string[]).includes(statusParam ?? '')
+      ? (statusParam as PayoutStatus)
+      : undefined;
+
+    const bookings = await prisma.booking.findMany({
+      where: {
+        status: BookingStatus.COMPLETED,
+        ...(status ? { payoutStatus: status } : {}),
+      },
+      orderBy: { slot: { startTime: 'desc' } },
+      take: 300,
+      include: {
+        slot: { select: { startTime: true, endTime: true } },
+        teacher: { include: { user: { select: { name: true } } } },
+        child: { select: { name: true } },
+        topic: { select: { name: true } },
+      },
+    });
+
+    res.json({
+      bookings: bookings.map((b) => ({
+        id: b.id,
+        startTime: b.slot.startTime,
+        endTime: b.slot.endTime,
+        payoutStatus: b.payoutStatus,
+        isReview: b.isReview,
+        teacherId: b.teacherId,
+        teacherName: b.teacher.user.name,
+        lessonRate: b.teacher.lessonRate,
+        childName: b.child.name,
+        topicName: b.topic?.name ?? null,
+      })),
+    });
+  })
+);
+
+const overridePayoutSchema = z.object({ payoutStatus: z.enum(PAYOUT_STATUSES) });
+
+// Admin elle onaylar/reddeder/bekletir — otomatik değerlendirme yalnızca PENDING'i hedeflediği
+// için bu elle yapılan değişikliği asla ezmez.
+router.put(
+  '/payouts/:bookingId',
+  asyncHandler(async (req, res) => {
+    const { payoutStatus } = overridePayoutSchema.parse(req.body);
+    const booking = await prisma.booking.findUnique({ where: { id: req.params.bookingId } });
+    if (!booking) throw new AppError(404, 'Ders bulunamadı');
+
+    await prisma.booking.update({ where: { id: booking.id }, data: { payoutStatus } });
+
+    logEvent({
+      type: 'payout.status_override',
+      bookingId: booking.id,
+      userId: req.user!.id,
+      role: 'ADMIN',
+      meta: { from: booking.payoutStatus, to: payoutStatus },
+    });
+
     res.json({ ok: true });
   })
 );

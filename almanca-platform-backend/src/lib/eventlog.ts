@@ -29,7 +29,11 @@ export type EventType =
   // müfredat ilerlemesi
   | 'progress.cascade_shift'
   | 'progress.cascade_shift_skipped'
-  | 'progress.start_sequence_set';
+  | 'progress.start_sequence_set'
+  // ödeme (ders ücreti)
+  | 'payout.auto_approved'
+  | 'payout.status_override'
+  | 'payout.rate_set';
 
 interface LogInput {
   type: EventType;

@@ -19,10 +19,33 @@ router.get(
   asyncHandler(async (req, res) => {
     const child = await prisma.childProfile.findUnique({
       where: { id: req.user!.childId! },
-      select: { id: true, name: true, age: true, credits: true },
+      select: { id: true, name: true, age: true, credits: true, avatarEmoji: true },
     });
     if (!child) throw new AppError(404, 'Profil bulunamadı');
     res.json({ child });
+  })
+);
+
+// Çocuğun kendi seçtiği profil emojisi — gerçek fotoğraf desteği yayına alınca eklenecek,
+// şimdilik sabit bir emoji listesiyle sınırlı (rastgele metin girişine izin verilmez).
+const AVATAR_EMOJIS = [
+  '🦊', '🐼', '🐵', '🐸', '🐯', '🦁', '🐶', '🐱',
+  '🐰', '🦄', '🐨', '🐧', '🦋', '🐢', '🦖', '🐳',
+  '🌟', '🚀', '⚽', '🎨', '🎸', '🍕', '🍩', '🌈',
+] as const;
+
+const avatarSchema = z.object({ emoji: z.enum(AVATAR_EMOJIS) });
+
+router.put(
+  '/me/avatar',
+  asyncHandler(async (req, res) => {
+    const { emoji } = avatarSchema.parse(req.body);
+    const child = await prisma.childProfile.update({
+      where: { id: req.user!.childId! },
+      data: { avatarEmoji: emoji },
+      select: { avatarEmoji: true },
+    });
+    res.json({ avatarEmoji: child.avatarEmoji });
   })
 );
 

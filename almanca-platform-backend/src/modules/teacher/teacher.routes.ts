@@ -7,6 +7,8 @@ import { authenticate } from '../../middleware/auth';
 import { requireRole } from '../../middleware/roles';
 import { hashPassword, verifyPassword } from '../../lib/password';
 import { loginLimiter } from '../../middleware/rateLimit';
+import { uploadImage } from '../../lib/upload';
+import { evaluatePayouts, getTeacherPayoutSummary } from '../payout/payout.service';
 
 const router = Router();
 
@@ -102,17 +104,20 @@ router.delete(
   })
 );
 
-// Yaklaşan dersler (rezerve edilmiş saatler)
+// Kendi tüm derslerin (yaklaşan/tamamlanan/iptal edilen — "Dersler" sekmesi bunları filtreler).
+// Okuma öncesi ödeme değerlendirmesi tetiklenir ki tamamlanma/ödeme durumu güncel gelsin.
 router.get(
   '/bookings',
   asyncHandler(async (req, res) => {
     const teacherId = await getTeacherProfileId(req.user!.id);
+    await evaluatePayouts(teacherId);
     const bookings = await prisma.booking.findMany({
-      where: { teacherId, status: { not: BookingStatus.CANCELLED } },
-      orderBy: { slot: { startTime: 'asc' } },
+      where: { teacherId },
+      orderBy: { slot: { startTime: 'desc' } },
       include: {
         slot: true,
         child: { select: { id: true, name: true, parent: { select: { name: true } } } },
+        topic: { select: { name: true } },
       },
     });
     res.json({ bookings });
@@ -142,12 +147,58 @@ router.get(
             specialties: true,
             iban: true,
             startDate: true,
+            photoUrl: true,
+            lessonRate: true,
           },
         },
       },
     });
     if (!user?.teacherProfile) throw new AppError(404, 'Öğretmen profili bulunamadı');
     res.json({ me: { name: user.name, email: user.email, ...user.teacherProfile } });
+  })
+);
+
+// Kendi profil fotoğrafını yükle (panelin sol üstünde ve varsa ana sayfa vitrininde kullanılır)
+router.post(
+  '/me/photo',
+  uploadImage.single('file'),
+  asyncHandler(async (req, res) => {
+    if (!req.file) throw new AppError(400, 'Görsel gerekli');
+    const teacherId = await getTeacherProfileId(req.user!.id);
+    const teacher = await prisma.teacherProfile.update({
+      where: { id: teacherId },
+      data: { photoUrl: `/uploads/${req.file.filename}` },
+    });
+    res.json({ photoUrl: teacher.photoUrl });
+  })
+);
+
+// Bu ayki ödeme özeti: ders ücreti + onaylanan/bekleyen/reddedilen ders sayıları.
+// Okuma öncesi otomatik değerlendirme (evaluatePayouts) tetiklenir — "lazy" tazeleme.
+router.get(
+  '/me/earnings',
+  asyncHandler(async (req, res) => {
+    const teacherId = await getTeacherProfileId(req.user!.id);
+    await evaluatePayouts(teacherId);
+    const summary = await getTeacherPayoutSummary(teacherId);
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthBookings = await prisma.booking.findMany({
+      where: {
+        teacherId,
+        status: { in: [BookingStatus.COMPLETED] },
+        slot: { startTime: { gte: monthStart } },
+      },
+      orderBy: { slot: { startTime: 'desc' } },
+      include: {
+        slot: { select: { startTime: true, endTime: true } },
+        child: { select: { name: true } },
+        topic: { select: { name: true } },
+      },
+    });
+
+    res.json({ summary, bookings: monthBookings });
   })
 );
 

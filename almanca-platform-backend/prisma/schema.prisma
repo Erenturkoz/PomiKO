@@ -29,6 +29,16 @@ enum BookingStatus {
   CANCELLED
 }
 
+// Ders ücreti ödeme durumu: tamamlanan bir ders varsayılan olarak PENDING (bekliyor)
+// başlar; sistem hem öğretmenin hem velinin odaya bağlandığına dair EventLog kanıtı
+// bulursa otomatik APPROVED'a çevirir. Kanıt eksikse PENDING kalır — admin elle
+// APPROVED/REJECTED yapabilir. "Önce kırmızı, incele, sonra yeşil" prensibi.
+enum PayoutStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 // Hesap sahipleri: veli, öğretmen, admin
 model User {
   id           String   @id @default(cuid())
@@ -56,6 +66,7 @@ model ChildProfile {
   birthDate    DateTime?
   level        String? // ileride CEFR (A1, A2, ...) — şimdilik boş
   credits      Int       @default(0) // 1 kredi = 1 ders
+  avatarEmoji  String? // çocuğun kendi seçtiği profil emojisi (gerçek fotoğraf yayına alınca eklenecek)
   startSequenceOrder Int @default(1) // müfredat ilerlemesi: admin'in atadığı başlangıç sırası (altındaki materyaller EXEMPT sayılır)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -97,6 +108,9 @@ model TeacherProfile {
   headline   String? // örn. "Çocuk Almancası Uzmanı"
   photoUrl   String?
   sortOrder  Int     @default(0)
+
+  // Ders başı ücret (TL) — admin atar, öğretmen kendi panelinde salt-okunur görür
+  lessonRate Int?
 
   // İşe alım / özlük bilgileri (yalnızca admin görür)
   phone           String?
@@ -194,6 +208,7 @@ model Booking {
   topic          Topic?        @relation(fields: [topicId], references: [id], onDelete: SetNull)
   status         BookingStatus @default(SCHEDULED)
   isReview       Boolean       @default(false) // true: tekrar dersi — müfredat ilerlemesini etkilemez
+  payoutStatus   PayoutStatus  @default(PENDING)
   roomName       String? // Daily.co oda adı (ders odası için)
   createdAt      DateTime      @default(now())
 
