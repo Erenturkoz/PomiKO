@@ -34,10 +34,11 @@ export function Layout({ children, wide = false }: { children: ReactNode; wide?:
         </div>
         {user && (
           <div className="topbar-user">
-            {/* TEST DERSİ (geçici — sonra bu satırı kaldır) */}
-            <Link className="btn btn-ghost btn-sm" to="/room/test">
-              Test dersi
-            </Link>
+            {user.role === 'ADMIN' && (
+              <Link className="btn btn-ghost btn-sm" to="/room/test">
+                Test dersi
+              </Link>
+            )}
             <span>{user.name}</span>
             <button className="btn btn-ghost" onClick={() => logout()}>
               Çıkış yap

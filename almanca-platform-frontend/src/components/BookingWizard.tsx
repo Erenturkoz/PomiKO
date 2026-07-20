@@ -5,6 +5,15 @@ import { formatTimeRange } from '../lib/format';
 import { now as serverNow } from '../lib/serverTime';
 import { addWeeks, formatWeekRange, startOfWeek } from '../lib/week';
 
+function IcSearch() {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="7" />
+      <path d="M21 21l-4.35-4.35" />
+    </svg>
+  );
+}
+
 interface Teacher {
   id: string;
   name: string;
@@ -259,10 +268,8 @@ export function BookingWizard({ credits, onBooked }: Props) {
     setReviewOverrides((prev) => ({ ...prev, [slotId]: topicId }));
   }
 
-  const canBook =
-    selectedSlots.length > 0 &&
-    selectedSlots.length <= credits &&
-    selectedSlotsSorted.every((s) => !!topicIdFor(s));
+  const missingTopicCount = selectedSlotsSorted.filter((s) => !topicIdFor(s)).length;
+  const canBook = selectedSlots.length > 0 && selectedSlots.length <= credits && missingTopicCount === 0;
 
   async function confirmBooking() {
     if (selectedSlots.length === 0) return;
@@ -321,11 +328,12 @@ export function BookingWizard({ credits, onBooked }: Props) {
           <div className="bk-toolbar">
             <label className="bk-search">
               <span className="bk-search-icon" aria-hidden="true">
-                🔍
+                <IcSearch />
               </span>
               <input
                 type="text"
                 placeholder="Öğretmen ara…"
+                aria-label="Öğretmen ara"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -544,11 +552,13 @@ export function BookingWizard({ credits, onBooked }: Props) {
                               </span>
                             ) : (
                               <span className="bk-lesson-assigned is-empty">
-                                Müfredatın sonuna geldin — tekrar dersi seç
+                                {reviewCandidates.length > 0
+                                  ? 'Müfredatın sonuna geldin — tekrar dersi seç'
+                                  : 'Müfredatın sonuna geldin — konu ataması için bizimle iletişime geç'}
                               </span>
                             ))}
                         </div>
-                        {!isOpen && (
+                        {!isOpen && reviewCandidates.length > 0 && (
                           <button
                             type="button"
                             className="bk-lesson-review-chip"
@@ -561,21 +571,17 @@ export function BookingWizard({ credits, onBooked }: Props) {
 
                       {isOpen && (
                         <div className="bk-lesson-review-panel">
-                          {reviewCandidates.length === 0 ? (
-                            <p className="muted small">Henüz tekrar edebileceğin bir ders yok.</p>
-                          ) : (
-                            <select
-                              value={reviewTopicId ?? ''}
-                              onChange={(e) => setReviewChoice(s.id, e.target.value)}
-                            >
-                              <option value="">Konu seç…</option>
-                              {reviewCandidates.map((m) => (
-                                <option key={m.topicId} value={m.topicId}>
-                                  Ünite {m.unitNumber} – {m.name}
-                                </option>
-                              ))}
-                            </select>
-                          )}
+                          <select
+                            value={reviewTopicId ?? ''}
+                            onChange={(e) => setReviewChoice(s.id, e.target.value)}
+                          >
+                            <option value="">Konu seç…</option>
+                            {reviewCandidates.map((m) => (
+                              <option key={m.topicId} value={m.topicId}>
+                                Ünite {m.unitNumber} – {m.name}
+                              </option>
+                            ))}
+                          </select>
                           {reviewMaterial && (
                             <p className="bk-review-note">
                               Bu ders tekrar amaçlıdır ve ilerlemenizi değiştirmez. Sıradaki dersiniz:{' '}
@@ -646,6 +652,12 @@ export function BookingWizard({ credits, onBooked }: Props) {
               kredin var.
             </div>
           )}
+          {selectedSlots.length > 0 && selectedSlots.length <= credits && missingTopicCount > 0 && (
+            <div className="alert alert-error">
+              {missingTopicCount} ders için konu seçilmedi. Rezerve etmeden önce yukarıdan her ders için bir
+              konu seç.
+            </div>
+          )}
 
           <button className="btn btn-primary" onClick={confirmBooking} disabled={!canBook || busy}>
             {busy ? 'Rezerve ediliyor…' : `Rezerve et (${selectedSlots.length} kredi)`}
@@ -658,19 +670,19 @@ export function BookingWizard({ credits, onBooked }: Props) {
         <div className="bk-done bk-step-pane">
           {results.every((r) => r.ok) ? (
             <>
-              <span className="bk-done-icon">🎉</span>
+              <span className="bk-done-icon" aria-hidden="true">🎉</span>
               <h4>{results.length > 1 ? `${results.length} ders rezerve edildi!` : 'Ders rezerve edildi!'}</h4>
             </>
           ) : results.some((r) => r.ok) ? (
             <>
-              <span className="bk-done-icon">⚠️</span>
+              <span className="bk-done-icon" aria-hidden="true">⚠️</span>
               <h4>
                 {results.filter((r) => r.ok).length}/{results.length} ders rezerve edildi
               </h4>
             </>
           ) : (
             <>
-              <span className="bk-done-icon">😕</span>
+              <span className="bk-done-icon" aria-hidden="true">😕</span>
               <h4>Rezervasyon yapılamadı</h4>
             </>
           )}

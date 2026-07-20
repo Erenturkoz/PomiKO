@@ -443,7 +443,7 @@ export function DrawingCanvas({
     >
       <canvas
         ref={canvasRef}
-        className="draw-canvas"
+        className={`draw-canvas tool-${tool}`}
         style={{ touchAction: 'none' }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
@@ -463,7 +463,7 @@ export function DrawingCanvas({
           }}
           value={draft.value}
           placeholder="Yaz…"
-          rows={1}
+          rows={Math.max(1, draft.value.split('\n').length)}
           onChange={(e) => setDraft((d) => (d ? { ...d, value: e.target.value } : d))}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) {

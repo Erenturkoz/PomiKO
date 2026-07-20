@@ -32,9 +32,16 @@ export function BookingCalendar({ weekStart, slots, selectedSlotIds, onToggleSlo
   }
 
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+  const hasOpenSlots = slots.some((s) => s.status === 'OPEN');
 
   return (
     <div className="cal-wrap">
+      {!hasOpenSlots && (
+        <p className="empty" style={{ marginBottom: 10 }}>
+          Bu öğretmenin bu haftaya ait açık saati yok. Başka bir haftaya bakabilir ya da farklı bir
+          öğretmen seçebilirsin.
+        </p>
+      )}
       <div className="cal-grid">
         <div className="cal-corner" />
         {days.map((d, i) => (

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { DailyCall, DailyParticipant } from '@daily-co/daily-js';
 import { VideoTile } from './VideoTile';
 
@@ -38,6 +38,20 @@ export function PreJoin({
   const [selectedCam, setSelectedCam] = useState('');
   const [selectedMic, setSelectedMic] = useState('');
   const [err, setErr] = useState<string | null>(null);
+  const [justUnlocked, setJustUnlocked] = useState(false);
+  const prevWaitingRef = useRef(waiting);
+
+  // Ders başlayınca "Derse bağlan" kilidi açılır — sayaca bakmayan kullanıcı
+  // için kısa bir vurgu animasyonu göster.
+  useEffect(() => {
+    if (prevWaitingRef.current && !waiting) {
+      setJustUnlocked(true);
+      const t = setTimeout(() => setJustUnlocked(false), 1600);
+      prevWaitingRef.current = waiting;
+      return () => clearTimeout(t);
+    }
+    prevWaitingRef.current = waiting;
+  }, [waiting]);
 
   // Admin dışı: kamerayı başlat (önizleme) + cihazları listele
   useEffect(() => {
@@ -149,7 +163,7 @@ export function PreJoin({
         </div>
 
         <button
-          className="btn btn-primary prejoin-join"
+          className={`btn btn-primary prejoin-join ${justUnlocked ? 'is-unlocked' : ''}`}
           onClick={onJoin}
           disabled={joining || waiting}
         >

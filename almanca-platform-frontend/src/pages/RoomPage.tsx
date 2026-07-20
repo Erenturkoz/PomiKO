@@ -295,7 +295,10 @@ export function RoomPage() {
   if (phase === 'loading' || !info) {
     return (
       <div className="room-plain">
-        <div className="room-status-page">Hazırlanıyor…</div>
+        <div className="room-status-page">
+          <span className="spinner" style={{ marginBottom: 12 }} />
+          Hazırlanıyor…
+        </div>
       </div>
     );
   }

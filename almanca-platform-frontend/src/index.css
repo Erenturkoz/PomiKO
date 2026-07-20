@@ -57,6 +57,27 @@ a:hover {
   color: var(--muted);
 }
 
+/* ---------- Yükleniyor göstergesi (spinner) ---------- */
+.spinner {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  border: 3px solid rgba(59, 91, 219, 0.18);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+.spinner-sm {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* ---------- Auth screens ---------- */
 .auth-screen {
   min-height: 100vh;
@@ -211,7 +232,8 @@ a:hover {
 .topbar-user {
   display: flex;
   align-items: center;
-  gap: 14px;
+  flex-wrap: wrap;
+  gap: 10px 14px;
   color: var(--muted);
   font-size: 0.9rem;
 }
@@ -564,7 +586,7 @@ a:hover {
   position: relative;
   border: 1px solid #ece5d5;
   border-radius: 9px;
-  height: 36px;
+  height: 40px;
   background: #fdfaf3;
   padding: 0;
   cursor: pointer;
@@ -772,8 +794,10 @@ a:hover {
   background: #fff;
 }
 .bk-search-icon {
-  font-size: 0.85rem;
-  opacity: 0.6;
+  display: flex;
+  align-items: center;
+  color: var(--muted);
+  opacity: 0.8;
 }
 .bk-search input {
   flex: 1;
@@ -852,11 +876,11 @@ a:hover {
 }
 .bk-teacher-fav {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 6px;
+  right: 6px;
   z-index: 2;
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -864,7 +888,7 @@ a:hover {
   border: 1px solid var(--border);
   background: #fff;
   color: #c9ccd2;
-  font-size: 1rem;
+  font-size: 1.1rem;
   line-height: 1;
   cursor: pointer;
   transition: color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
@@ -941,6 +965,15 @@ a:hover {
   overflow-y: auto;
   border-radius: 14px;
 }
+/* Öğrenci ders seçimindeki takvim: satırlar öğretmenin müsaitlik ızgarasından
+   (AvailabilityGrid) daha kısa — kaydırmadan tek seferde daha fazla saat görünsün */
+.bk-cal-scroll .cal-grid {
+  gap: 4px 7px;
+}
+.bk-cal-scroll .cal-cell,
+.bk-cal-scroll .cal-time {
+  height: 28px;
+}
 
 /* Seçilen saat(ler) özeti + devam butonu */
 .bk-summary-bar {
@@ -963,7 +996,7 @@ a:hover {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 6px 4px 10px;
+  padding: 5px 7px 5px 12px;
   border-radius: 999px;
   background: #fff;
   border: 1px solid rgba(59, 91, 219, 0.25);
@@ -974,12 +1007,12 @@ a:hover {
   border: none;
   background: #eef1f6;
   color: var(--muted);
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
   line-height: 1;
   cursor: pointer;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
 }
 .bk-chip button:hover {
   background: #fdecec;
@@ -1373,7 +1406,8 @@ a:hover {
    =================================================================== */
 
 .btn-sm {
-  padding: 7px 12px;
+  padding: 9px 14px;
+  min-height: 36px;
   font-size: 0.85rem;
 }
 
@@ -1543,14 +1577,20 @@ a:hover {
   margin-bottom: 16px;
 }
 .modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
   border: none;
   background: transparent;
   font-size: 1.5rem;
   line-height: 1;
   color: var(--muted);
   cursor: pointer;
-  padding: 0 4px;
-  border-radius: 6px;
+  padding: 0;
+  border-radius: 8px;
+  flex-shrink: 0;
 }
 .modal-close:hover {
   color: var(--text);
@@ -1618,6 +1658,24 @@ a:hover {
 .prejoin-join {
   width: 100%;
   margin-top: 18px;
+}
+/* Ders başlayınca kilit açılır — kısa bir vurgu ile fark ettir */
+.prejoin-join.is-unlocked {
+  animation: prejoinUnlock 0.55s ease 2;
+}
+@keyframes prejoinUnlock {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 91, 219, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(59, 91, 219, 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .prejoin-join.is-unlocked {
+    animation: none;
+  }
 }
 
 /* --- Kamera karosu --- */
@@ -1877,7 +1935,16 @@ a:hover {
 .draw-canvas {
   position: absolute;
   inset: 0;
+  cursor: default;
+}
+.draw-canvas.tool-pen {
   cursor: crosshair;
+}
+.draw-canvas.tool-eraser {
+  cursor: cell;
+}
+.draw-canvas.tool-text {
+  cursor: text;
 }
 /* Satır içi metin kutusu (popup yerine, tıklanan noktada) */
 .draw-textbox {
@@ -1906,6 +1973,11 @@ a:hover {
 }
 .ms-nav .pdf-page {
   color: #aeb8c6;
+}
+/* Koyu ders sahnesindeki materyal durum mesajları (yükleniyor/hata/yok) —
+   panelin açık-tema --muted rengi koyu arka planda okunmuyordu */
+.room-stage .pdf-msg {
+  color: #c3ccd8;
 }
 
 /* Araç kutusu (sağ) */
@@ -1950,8 +2022,8 @@ a:hover {
 }
 .tb-colors {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
+  grid-template-columns: 1fr;
+  gap: 5px;
 }
 .tb-color {
   width: 100%;
@@ -1962,6 +2034,7 @@ a:hover {
 }
 .tb-color.is-on {
   border-color: #fff;
+  box-shadow: 0 0 0 2px #111826, 0 0 0 4px var(--accent);
 }
 .tb-sizes {
   display: flex;
@@ -2016,7 +2089,7 @@ a:hover {
     width: 100%;
   }
   .tb-colors {
-    grid-template-columns: repeat(6, 22px);
+    grid-template-columns: repeat(6, 36px);
   }
   .tb-sizes {
     flex-direction: row;
@@ -2593,6 +2666,13 @@ a:hover {
   font-weight: 600;
   font-size: 0.95rem;
 }
+/* Alan bazlı otomatik kayıt onayı (ör. öğretmen CMS listesi) */
+.cms-saved-tag {
+  margin-left: 8px;
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--ok-text);
+}
 
 /* Yer tutucu bloklar */
 .s-grid-2 {
@@ -2883,6 +2963,7 @@ textarea:focus {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   width: 100%;
   padding: 12px 6px;
   border-radius: 14px;
@@ -2900,10 +2981,12 @@ textarea:focus {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
 }
-/* Son 5 dakika: dikkat çeksin ama rahatsız etmesin */
+/* Son 5 dakika: dikkat çeksin ama rahatsız etmesin — renk yanında ikon da var,
+   sadece renkle sınırlı bir sinyal olmasın */
 .lesson-timer.is-urgent {
   background: rgba(201, 42, 42, 0.55);
   border-color: rgba(255, 170, 170, 0.4);
+  color: #ffe3e3;
 }
 
 @media (max-width: 900px) {
@@ -2963,6 +3046,11 @@ textarea:focus {
   margin: 0;
   padding: 0;
   position: relative;
+  transition: opacity 0.15s ease;
+}
+.log-list.is-busy {
+  opacity: 0.45;
+  pointer-events: none;
 }
 /* Zaman çizgisi */
 .log-list::before {
@@ -3056,6 +3144,10 @@ textarea:focus {
 }
 .s-row-click:hover {
   background: #f2ede1;
+}
+.s-row-click:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .live-dot {
@@ -3489,6 +3581,12 @@ textarea:focus {
 }
 
 /* Kartlar: her zaman ekranın ortasında; 1 profil ortada, 2+ yan yana ortalı */
+.ph-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
 .ph-cards {
   display: flex;
   justify-content: center;
@@ -3506,6 +3604,9 @@ textarea:focus {
 }
 .ph-card.is-entering {
   opacity: 0.65;
+}
+.ph-card.is-dimmed {
+  opacity: 0.4;
 }
 
 .ph-avatar {

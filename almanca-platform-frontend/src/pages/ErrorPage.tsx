@@ -1,4 +1,6 @@
+import { useContext } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { AuthContext } from '../auth/AuthContext';
 
 interface Props {
   title?: string;
@@ -18,6 +20,19 @@ export function ErrorPage({
   onReset,
 }: Props) {
   const navigate = useNavigate();
+  // Provider dışında (ErrorBoundary'nin çökme fallback'i) render edilebileceği için
+  // useAuth() değil, fırlatmayan ham useContext kullanılıyor.
+  const auth = useContext(AuthContext);
+  const user = auth?.user ?? null;
+  const panelPath = !user
+    ? null
+    : user.role === 'TEACHER'
+      ? '/teacher'
+      : user.role === 'ADMIN'
+        ? '/admin'
+        : auth?.session.mode === 'profile'
+          ? '/student'
+          : '/parent';
 
   function handleBack() {
     onReset?.();
@@ -40,7 +55,12 @@ export function ErrorPage({
             <button type="button" className="lp-btn lp-btn-primary lp-btn-lg" onClick={handleBack}>
               ‹ Geri dön
             </button>
-            <Link to="/" className="lp-link">
+            {panelPath && (
+              <Link to={panelPath} className="lp-link" onClick={() => onReset?.()}>
+                Panele dön
+              </Link>
+            )}
+            <Link to="/" className="lp-link" onClick={() => onReset?.()}>
               Ana sayfaya git
             </Link>
           </div>

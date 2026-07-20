@@ -175,6 +175,7 @@ export function AdminDashboard() {
   const setTab = (t: Tab) => setSearchParams(t === 'home' ? {} : { tab: t });
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
+  const [justSavedId, setJustSavedId] = useState<string | null>(null);
 
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [homeTeachers, setHomeTeachers] = useState<HomeTeacher[]>([]);
@@ -486,6 +487,8 @@ export function AdminDashboard() {
       });
       await loadAll();
       flash('Kaydedildi.');
+      setJustSavedId(t.id);
+      setTimeout(() => setJustSavedId((id) => (id === t.id ? null : id)), 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Kaydedilemedi');
     }
@@ -784,6 +787,7 @@ export function AdminDashboard() {
                   className={`unit-tab unit-tab-add ${displayUnit === nextUnitNumber && !unitNumbers.includes(nextUnitNumber) ? 'is-on' : ''}`}
                   onClick={() => switchUnit(nextUnitNumber)}
                   title="Yeni ünite ekle"
+                  aria-label="Yeni ünite ekle"
                 >
                   +
                 </button>
@@ -969,7 +973,19 @@ export function AdminDashboard() {
               ) : (
                 <ul className="s-list">
                   {teachers.map((t) => (
-                    <li key={t.id} className="s-row s-row-click" onClick={() => openTeacherDetail(t.id)}>
+                    <li
+                      key={t.id}
+                      className="s-row s-row-click"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => openTeacherDetail(t.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          openTeacherDetail(t.id);
+                        }
+                      }}
+                    >
                       <div>
                         <div className="s-row-main">{t.name}</div>
                         <div className="muted small">{t.email}</div>
@@ -996,7 +1012,19 @@ export function AdminDashboard() {
             ) : (
               <ul className="s-list">
                 {parents.map((pr) => (
-                  <li key={pr.id} className="s-row s-row-click" onClick={() => openParentDetail(pr.id)}>
+                  <li
+                    key={pr.id}
+                    className="s-row s-row-click"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => openParentDetail(pr.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        openParentDetail(pr.id);
+                      }
+                    }}
+                  >
                     <div>
                       <div className="s-row-main">{pr.name}</div>
                       <div className="muted small">
@@ -1069,7 +1097,14 @@ export function AdminDashboard() {
                         )}
                       </div>
                       <div className="cms-teacher-body">
-                        <div className="s-row-main">{t.name}</div>
+                        <div className="s-row-main">
+                          {t.name}
+                          {justSavedId === t.id && (
+                            <span className="cms-saved-tag" role="status">
+                              ✓ Kaydedildi
+                            </span>
+                          )}
+                        </div>
                         <div className="cms-fields">
                           <label className="field">
                             <span>Ünvan</span>
@@ -1306,6 +1341,7 @@ export function AdminDashboard() {
               <div className="card-head-row">
                 <h3 className="s-card-title" style={{ margin: 0 }}>
                   Olay kayıtları ({logTotal})
+                  {logBusy && <span className="spinner spinner-sm" style={{ marginLeft: 10, verticalAlign: 'middle' }} />}
                 </h3>
                 <span className="muted small">
                   {logSkip + 1}–{Math.min(logSkip + logs.length, logTotal)} arası
@@ -1315,7 +1351,7 @@ export function AdminDashboard() {
               {logs.length === 0 ? (
                 <p className="empty">Kayıt bulunamadı.</p>
               ) : (
-                <ul className="log-list">
+                <ul className={`log-list ${logBusy ? 'is-busy' : ''}`}>
                   {logs.map((l) => {
                     const meta = EVENT_META[l.type] ?? { label: l.type, color: '#868e96' };
                     const extra = describeMeta(l);
@@ -1405,7 +1441,7 @@ export function AdminDashboard() {
                   <div className="muted small">Bu öğretmen için kayıtlı geçici parola yok.</div>
                 )}
               </div>
-              <button className="btn btn-primary btn-sm" onClick={copyCredentials}>
+              <button className="btn btn-primary btn-sm" onClick={copyCredentials} aria-live="polite">
                 {copied ? 'Kopyalandı ✓' : 'Bilgileri kopyala'}
               </button>
             </div>

@@ -56,7 +56,11 @@ interface AuthContextValue {
 
 const DEFAULT_SESSION: Session = { mode: 'account', child: null };
 
-const AuthContext = createContext<AuthContextValue | null>(null);
+// Normalde useAuth() üzerinden okunur (Provider dışında kullanılırsa fırlatır).
+// ErrorPage, ErrorBoundary'nin çökme fallback'inde AuthProvider'ın DIŞINDA render
+// edildiği için ham context'i de export ediyoruz — orada useContext ile güvenle
+// (Provider yoksa null dönerek) okunabilsin diye.
+export const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);

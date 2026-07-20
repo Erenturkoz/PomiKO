@@ -198,6 +198,7 @@ export function TeacherDashboard() {
         body: { startTime: iso, durationMinutes: 30 },
       });
       setSlots((prev) => [...prev, { ...slot, booking: null }]);
+      flash('Ders saati açıldı.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ders saati açılamadı');
     }
@@ -208,6 +209,7 @@ export function TeacherDashboard() {
     try {
       await apiFetch(`/api/teacher/slots/${id}`, { method: 'DELETE' });
       setSlots((prev) => prev.filter((s) => s.id !== id));
+      flash('Ders saati kapatıldı.');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ders saati kapatılamadı');
     }

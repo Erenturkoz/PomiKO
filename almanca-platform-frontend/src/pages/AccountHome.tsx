@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api/client';
 import { Modal } from '../components/Modal';
 import { useAuth } from '../auth/AuthContext';
@@ -106,11 +106,21 @@ export function AccountHome() {
         {loading ? (
           <p className="muted">Yükleniyor…</p>
         ) : children.length === 0 ? (
-          <p className="empty">Bu hesaba bağlı çocuk profili yok. Yeni çocuk için bizimle iletişime geç.</p>
+          <div className="ph-empty">
+            <p className="empty">Bu hesaba bağlı çocuk profili yok. Yeni çocuk için bizimle iletişime geç.</p>
+            <Link to="/#faq" className="btn btn-ghost btn-sm">
+              Sık sorulan sorulara bak
+            </Link>
+          </div>
         ) : (
           <div className="ph-cards">
             {children.map((c, i) => (
-              <div key={c.id} className={`ph-card ${entering === c.id ? 'is-entering' : ''}`}>
+              <div
+                key={c.id}
+                className={`ph-card ${entering === c.id ? 'is-entering' : ''} ${
+                  entering !== null && entering !== c.id ? 'is-dimmed' : ''
+                }`}
+              >
                 <button
                   className="ph-avatar"
                   style={{ background: AVATAR_GRADIENTS[i % AVATAR_GRADIENTS.length] }}
@@ -123,7 +133,12 @@ export function AccountHome() {
                 </button>
                 <div className="ph-name">{c.name}</div>
                 {c.age != null && <div className="ph-age">{c.age} yaş</div>}
-                <button className="ph-credit" onClick={() => setTopupChild(c)} title="Kredi yükle">
+                <button
+                  className="ph-credit"
+                  onClick={() => setTopupChild(c)}
+                  title="Kredi yükle"
+                  aria-label={`${c.name} için kredi yükle`}
+                >
                   ★ {c.credits} kredi <span className="ph-credit-plus">+</span>
                 </button>
               </div>

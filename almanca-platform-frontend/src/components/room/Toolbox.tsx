@@ -1,6 +1,14 @@
 import { Tool } from './drawTypes';
 
 const COLORS = ['#e03131', '#1971c2', '#2f9e44', '#f08c00', '#1c2430', '#ffffff'];
+const COLOR_NAMES: Record<string, string> = {
+  '#e03131': 'Kırmızı',
+  '#1971c2': 'Mavi',
+  '#2f9e44': 'Yeşil',
+  '#f08c00': 'Turuncu',
+  '#1c2430': 'Siyah',
+  '#ffffff': 'Beyaz',
+};
 const SIZES = [
   { label: 'İnce', value: 2, dot: 6 },
   { label: 'Orta', value: 4, dot: 10 },
@@ -107,8 +115,8 @@ export function Toolbox({ tool, setTool, color, setColor, size, setSize, canDraw
             className={`tb-color ${color === c ? 'is-on' : ''}`}
             style={{ background: c }}
             onClick={() => setColor(c)}
-            title={`Renk`}
-            aria-label={`Renk ${c}`}
+            title={COLOR_NAMES[c] ?? 'Renk'}
+            aria-label={`Renk: ${COLOR_NAMES[c] ?? c}`}
           />
         ))}
       </div>

@@ -59,12 +59,14 @@ interface HomeTestimonial {
 export function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [navOpen, setNavOpen] = useState(false);
 
   // Admin panelinden yönetilen içerik (yoksa varsayılanlar kullanılır)
   const [heroTitle, setHeroTitle] = useState<string | null>(null);
   const [heroText, setHeroText] = useState<string | null>(null);
   const [cmsTeachers, setCmsTeachers] = useState<HomeTeacher[]>([]);
   const [testimonials, setTestimonials] = useState<HomeTestimonial[]>([]);
+  const [homeLoaded, setHomeLoaded] = useState(false);
 
   useEffect(() => {
     let off = false;
@@ -80,6 +82,8 @@ export function LandingPage() {
         if (Array.isArray(data?.testimonials)) setTestimonials(data.testimonials);
       } catch {
         /* içerik alınamazsa varsayılanlar gösterilir */
+      } finally {
+        if (!off) setHomeLoaded(true);
       }
     })();
     return () => {
@@ -94,6 +98,16 @@ export function LandingPage() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  // Mobil menü açıkken Escape ile kapansın; bir bağlantıya tıklayınca da kapanır
+  useEffect(() => {
+    if (!navOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setNavOpen(false);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [navOpen]);
+
   return (
     <div className="lp" id="top">
       <ScrollProgress />
@@ -103,13 +117,24 @@ export function LandingPage() {
         <header className={`lp-nav ${scrolled ? 'is-stuck' : ''}`}>
           <div className="lp-nav-inner">
             <Brand />
-            <nav className="lp-nav-links">
+            <nav className={`lp-nav-links ${navOpen ? 'is-open' : ''}`}>
               {NAV_LINKS.map((l) => (
-                <a key={l.href} href={l.href}>
+                <a key={l.href} href={l.href} onClick={() => setNavOpen(false)}>
                   {l.label}
                 </a>
               ))}
             </nav>
+            <button
+              type="button"
+              className="lp-nav-toggle"
+              aria-expanded={navOpen}
+              aria-label={navOpen ? 'Menüyü kapat' : 'Menüyü aç'}
+              onClick={() => setNavOpen((v) => !v)}
+            >
+              <span />
+              <span />
+              <span />
+            </button>
             <div className="lp-nav-cta">
               <Link to="/login" className="lp-link">
                 Giriş Yap
@@ -512,7 +537,10 @@ export function LandingPage() {
       </section>
 
       {/* ---------- Veli yorumları (admin panelinden yönetilir) ---------- */}
-      {testimonials.length > 0 && (
+      {/* İçerik gelene kadar yer ayrılır — sonradan patlak veren bölüm alttaki
+          paketler bölümünü aşağı itip sayfa sıçramasına (CLS) sebep oluyordu. */}
+      {!homeLoaded && <div className="lp-testi-reserve" aria-hidden="true" />}
+      {homeLoaded && testimonials.length > 0 && (
         <section className="lp-sec">
           <div className="lp-wrap">
             <Reveal variant="up">
@@ -550,10 +578,8 @@ export function LandingPage() {
                 <article className={`lp-plan ${p.featured ? 'is-featured' : ''}`}>
                   {p.featured && <span className="lp-plan-tag">En Çok Tercih Edilen</span>}
                   <h3>{p.name}</h3>
-                  <div className="lp-price">
-                    ₺<span className="lp-price-blank" />
-                  </div>
-                  <p className="muted small">/ ay · düzenlenebilir</p>
+                  <div className="lp-price lp-price-cta">Fiyat için bize ulaşın</div>
+                  <p className="muted small">Paket ve kredi seçenekleri ihtiyacına göre birlikte belirlenir.</p>
                   <ul className="lp-plan-list">
                     {p.items.map((it) => (
                       <li key={it}>

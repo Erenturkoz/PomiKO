@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { AuthShell } from '../components/AuthShell';
@@ -19,6 +19,8 @@ function passStrength(p: string): number {
   return s;
 }
 
+const STRENGTH_LABEL = ['Çok zayıf', 'Zayıf', 'Orta', 'İyi', 'Güçlü'];
+
 export function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
@@ -31,8 +33,13 @@ export function RegisterPage() {
   const [children, setChildren] = useState<ChildRow[]>([{ name: '', age: '', birthDate: '' }]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const errorRef = useRef<HTMLDivElement>(null);
 
   const strength = passStrength(password);
+
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [error]);
 
   function updateChild(i: number, patch: Partial<ChildRow>) {
     setChildren((prev) => prev.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
@@ -105,7 +112,11 @@ export function RegisterPage() {
       title="Veli hesabı oluştur"
       subtitle="Hesabı sen yönetirsin; her çocuğun kendi profili ve kredisi olur."
     >
-      {error && <div className="auth-alert">{error}</div>}
+      {error && (
+        <div className="auth-alert" ref={errorRef}>
+          {error}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="auth-form">
         <label className="auth-field">
@@ -168,6 +179,9 @@ export function RegisterPage() {
           <div className={`auth-strength s${strength}`} aria-hidden>
             <i /><i /><i /><i />
           </div>
+          {password.length > 0 && (
+            <span className="sr-only">Parola gücü: {STRENGTH_LABEL[strength]}</span>
+          )}
           <small className="auth-hint">
             En az 8 karakter; harf ve rakam karışımı öneririz. Çocuk profillerinden hesaba dönüşte de
             bu parola sorulur.

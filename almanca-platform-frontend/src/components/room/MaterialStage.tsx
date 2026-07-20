@@ -134,7 +134,7 @@ export function MaterialStage({ co, fileUrl, isTeacher, canDraw, tool, color, si
             </span>
             <button
               className="btn btn-ghost btn-sm"
-              disabled={numPages > 0 && page >= numPages}
+              disabled={numPages === 0 || page >= numPages}
               onClick={() => goTo(page + 1)}
             >
               Sonraki ›

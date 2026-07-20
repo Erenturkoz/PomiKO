@@ -4,6 +4,7 @@ import { VideoTile, ParticipantAudio } from './VideoTile';
 import { MaterialStage } from './MaterialStage';
 import { Toolbox } from './Toolbox';
 import { Tool } from './drawTypes';
+import { ConfirmDialog } from '../ConfirmDialog';
 
 interface Material {
   name: string;
@@ -31,6 +32,13 @@ const IcCam = ({ off = false }: { off?: boolean }) => (
 const IcLeave = () => (
   <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
     <path d="M12 9c-2.9 0-5.6.6-8 1.7-.6.3-1 .9-1 1.6v2.3c0 .8.7 1.4 1.5 1.3l3.6-.5c.7-.1 1.2-.6 1.3-1.3l.2-1.5c.8-.2 1.6-.3 2.4-.3s1.6.1 2.4.3l.2 1.5c.1.7.6 1.2 1.3 1.3l3.6.5c.8.1 1.5-.5 1.5-1.3v-2.3c0-.7-.4-1.3-1-1.6C17.6 9.6 14.9 9 12 9z" />
+  </svg>
+);
+const IcUrgent = () => (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 9v4" />
+    <path d="M12 16.5h.01" />
+    <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
   </svg>
 );
 
@@ -71,6 +79,8 @@ export function LessonRoom({
   const [color, setColor] = useState('#e03131');
   const [size, setSize] = useState(4);
   const [clearNonce, setClearNonce] = useState(0);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
 
   const totalSec = Math.max(0, Math.ceil(remainingMs / 1000));
   const mm = Math.floor(totalSec / 60);
@@ -125,10 +135,16 @@ export function LessonRoom({
 
       {/* Sağ: sayaç + araç kutusu */}
       <div className="rs-right">
-        <button className="ctl-btn ctl-leave" onClick={onLeave} title="Dersten ayrıl" aria-label="Dersten ayrıl">
+        <button
+          className="ctl-btn ctl-leave"
+          onClick={() => setConfirmLeave(true)}
+          title="Dersten ayrıl"
+          aria-label="Dersten ayrıl"
+        >
           <IcLeave />
         </button>
         <div className={`lesson-timer ${urgent ? 'is-urgent' : ''}`}>
+          {urgent && <IcUrgent />}
           <span className="lesson-timer-time">
             {mm}:{ss}
           </span>
@@ -142,7 +158,7 @@ export function LessonRoom({
           setSize={setSize}
           canDraw={!isObserver}
           canClear={isTeacher}
-          onClear={() => setClearNonce((n) => n + 1)}
+          onClear={() => setConfirmClear(true)}
         />
       </div>
 
@@ -150,6 +166,31 @@ export function LessonRoom({
       {remotes.map((p) => (
         <ParticipantAudio key={p.session_id} participant={p} />
       ))}
+
+      <ConfirmDialog
+        open={confirmLeave}
+        title="Dersten ayrıl"
+        message="Dersten ayrılmak istediğine emin misin?"
+        confirmLabel="Ayrıl"
+        danger
+        onConfirm={() => {
+          setConfirmLeave(false);
+          onLeave();
+        }}
+        onCancel={() => setConfirmLeave(false)}
+      />
+      <ConfirmDialog
+        open={confirmClear}
+        title="Tümünü temizle"
+        message="Tahtadaki tüm çizim silinsin mi? Bu işlem geri alınamaz."
+        confirmLabel="Temizle"
+        danger
+        onConfirm={() => {
+          setConfirmClear(false);
+          setClearNonce((n) => n + 1);
+        }}
+        onCancel={() => setConfirmClear(false)}
+      />
     </div>
   );
 }
