@@ -15,12 +15,6 @@ interface Me {
   credits: number;
 }
 
-interface Topic {
-  id: string;
-  name: string;
-  description: string | null;
-}
-
 interface Booking {
   id: string;
   status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED';
@@ -63,12 +57,12 @@ export function StudentDashboard() {
   const setTab = (t: Tab) => setSearchParams(t === 'home' ? {} : { tab: t });
 
   const [me, setMe] = useState<Me | null>(null);
-  const [topics, setTopics] = useState<Topic[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [pendingCancelId, setPendingCancelId] = useState<string | null>(null);
+  const [showAllDone, setShowAllDone] = useState(false);
 
   const [pinOpen, setPinOpen] = useState(false);
   const [pin, setPin] = useState('');
@@ -85,13 +79,11 @@ export function StudentDashboard() {
     setLoading(true);
     setError(null);
     try {
-      const [meRes, topicRes, bookingRes] = await Promise.all([
+      const [meRes, bookingRes] = await Promise.all([
         apiFetch<{ child: Me }>('/api/me'),
-        apiFetch<{ topics: Topic[] }>('/api/topics'),
         apiFetch<{ bookings: Booking[] }>('/api/bookings'),
       ]);
       setMe(meRes.child);
-      setTopics(topicRes.topics);
       setBookings(bookingRes.bookings);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Veriler yüklenemedi');
@@ -143,6 +135,10 @@ export function StudentDashboard() {
   const upcoming = activeBookings.filter((b) => joinState(b.slot.startTime, b.slot.endTime) !== 'ended');
   const done = activeBookings.filter((b) => joinState(b.slot.startTime, b.slot.endTime) === 'ended');
   const nextLesson = upcoming[0];
+  const DONE_PAGE_SIZE = 5;
+  // En yeni geçmiş ders en üstte görünsün diye ters çevrilir
+  const doneRecentFirst = [...done].reverse();
+  const visibleDone = showAllDone ? doneRecentFirst : doneRecentFirst.slice(0, DONE_PAGE_SIZE);
 
   function canCancel(startIso: string) {
     return minutesUntil(startIso) > 30;
@@ -292,7 +288,7 @@ export function StudentDashboard() {
           <div className="s-cols s-cols-wide-first">
             <div className="s-card">
               <h3 className="s-card-title">Ders al</h3>
-              <BookingWizard topics={topics} credits={credits} onBooked={loadAll} />
+              <BookingWizard credits={credits} onBooked={loadAll} />
             </div>
 
             <div>
@@ -311,12 +307,21 @@ export function StudentDashboard() {
 
             {done.length > 0 && (
               <div className="s-card">
-                <h3 className="s-card-title">Geçmiş dersler</h3>
+                <h3 className="s-card-title">Geçmiş dersler ({done.length})</h3>
                 <ul className="s-list">
-                  {done.map((b) => (
+                  {visibleDone.map((b) => (
                     <BookingRow key={b.id} b={b} />
                   ))}
                 </ul>
+                {done.length > DONE_PAGE_SIZE && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm s-show-more"
+                    onClick={() => setShowAllDone((v) => !v)}
+                  >
+                    {showAllDone ? 'Daha az göster' : `Daha fazla göster (${done.length - DONE_PAGE_SIZE})`}
+                  </button>
+                )}
               </div>
             )}
             </div>

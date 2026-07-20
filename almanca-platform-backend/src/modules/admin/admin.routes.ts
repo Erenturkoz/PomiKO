@@ -1,12 +1,13 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { Role } from '@prisma/client';
+import { Role, Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { hashPassword } from '../../lib/password';
 import { asyncHandler, AppError } from '../../lib/errors';
 import { authenticate } from '../../middleware/auth';
 import { requireRole } from '../../middleware/roles';
 import { uploadPdf, uploadImage } from '../../lib/upload';
+import { logEvent } from '../../lib/eventlog';
 
 const router = Router();
 
@@ -109,25 +110,77 @@ router.get(
   })
 );
 
-// --- Ders konuları ---
+// --- Ders konuları (üniteler halinde) ---
+//
+// Ünite ayrı bir tablo değil: Topic.unitNumber'dan türetilir. Bir ünite yalnızca içinde
+// en az bir konu olduğunda "var" sayılır — admin panelinde "+ ünite" bir üniteyi boş
+// oluşturmaz, o üniteye ilk konu eklendiğinde sekme kendiliğinden belirir.
+//
+// sequenceOrder artık elle girilmez: her yapısal değişiklikten (ekle/taşı/sil/düzenle)
+// sonra resequenceTopics tüm konuları (unitNumber, orderInUnit) sırasına göre yeniden
+// numaralandırır — hem ünite içi sıra hem genel sıra her zaman tutarlı ve boşluksuz kalır.
+async function resequenceTopics(tx: Prisma.TransactionClient) {
+  const topics = await tx.topic.findMany({
+    where: { unitNumber: { not: null } },
+    orderBy: [{ unitNumber: 'asc' }, { orderInUnit: 'asc' }, { createdAt: 'asc' }],
+  });
 
-// Yeni konu oluştur (PDF materyaliyle). Oluşturulunca velilerin listesine düşer.
+  // 1. adım: hepsini negatif geçici değerlere çek — @unique sequenceOrder'da
+  // ara adımda çakışma olmasın diye.
+  await Promise.all(
+    topics.map((t, i) => tx.topic.update({ where: { id: t.id }, data: { sequenceOrder: -(i + 1) } }))
+  );
+
+  // 2. adım: gerçek, boşluksuz değerleri ata
+  let seq = 1;
+  let currentUnit: number | null = null;
+  let orderInUnit = 0;
+  for (const t of topics) {
+    if (t.unitNumber !== currentUnit) {
+      currentUnit = t.unitNumber;
+      orderInUnit = 0;
+    }
+    orderInUnit += 1;
+    await tx.topic.update({ where: { id: t.id }, data: { orderInUnit, sequenceOrder: seq } });
+    seq += 1;
+  }
+}
+
+const topicPlacementSchema = z.object({
+  unitNumber: z.coerce.number().int().min(1),
+  orderInUnit: z.coerce.number().int().min(1),
+});
+
+// Yeni konu oluştur (PDF materyaliyle) — hangi üniteye ve o ünitede hangi sıraya
+// ekleneceği admin panelinden seçilir.
 router.post(
   '/topics',
   uploadPdf.single('file'),
   asyncHandler(async (req, res) => {
     const name = String(req.body.name ?? '').trim();
     const description = String(req.body.description ?? '').trim() || null;
+    const { unitNumber, orderInUnit } = topicPlacementSchema.parse(req.body);
     if (name.length < 2) throw new AppError(400, 'Konu adı en az 2 karakter olmalı');
     if (!req.file) throw new AppError(400, 'PDF materyali gerekli');
 
-    const topic = await prisma.topic.create({
-      data: {
-        name,
-        description,
-        materialUrl: `/uploads/${req.file.filename}`,
-        materialFilename: req.file.originalname,
-      },
+    const topic = await prisma.$transaction(async (tx) => {
+      // Hedef konumu ve sonrasını bir kaydırıp yer aç
+      await tx.topic.updateMany({
+        where: { unitNumber, orderInUnit: { gte: orderInUnit } },
+        data: { orderInUnit: { increment: 1 } },
+      });
+      const created = await tx.topic.create({
+        data: {
+          name,
+          description,
+          materialUrl: `/uploads/${req.file!.filename}`,
+          materialFilename: req.file!.originalname,
+          unitNumber,
+          orderInUnit,
+        },
+      });
+      await resequenceTopics(tx);
+      return created;
     });
     res.status(201).json({ topic });
   })
@@ -136,8 +189,87 @@ router.post(
 router.get(
   '/topics',
   asyncHandler(async (_req, res) => {
-    const topics = await prisma.topic.findMany({ orderBy: { createdAt: 'desc' } });
+    const topics = await prisma.topic.findMany({ orderBy: { sequenceOrder: 'asc' } });
     res.json({ topics });
+  })
+);
+
+const updateTopicSchema = z.object({
+  name: z.string().min(2),
+  description: z.string().optional(),
+  unitNumber: z.coerce.number().int().min(1),
+  orderInUnit: z.coerce.number().int().min(1),
+});
+
+// Konuyu düzenle: isim/açıklama/materyal (PDF isteğe bağlı değişir) + istenirse
+// başka bir üniteye/sıraya taşınır.
+router.put(
+  '/topics/:id',
+  uploadPdf.single('file'),
+  asyncHandler(async (req, res) => {
+    const existing = await prisma.topic.findUnique({ where: { id: req.params.id } });
+    if (!existing) throw new AppError(404, 'Konu bulunamadı');
+
+    const data = updateTopicSchema.parse({
+      name: req.body.name,
+      description: req.body.description,
+      unitNumber: req.body.unitNumber,
+      orderInUnit: req.body.orderInUnit,
+    });
+
+    await prisma.$transaction(async (tx) => {
+      await tx.topic.updateMany({
+        where: { unitNumber: data.unitNumber, orderInUnit: { gte: data.orderInUnit }, id: { not: existing.id } },
+        data: { orderInUnit: { increment: 1 } },
+      });
+      await tx.topic.update({
+        where: { id: existing.id },
+        data: {
+          name: data.name,
+          description: data.description?.trim() || null,
+          unitNumber: data.unitNumber,
+          orderInUnit: data.orderInUnit,
+          ...(req.file
+            ? { materialUrl: `/uploads/${req.file.filename}`, materialFilename: req.file.originalname }
+            : {}),
+        },
+      });
+      await resequenceTopics(tx);
+    });
+
+    const topic = await prisma.topic.findUnique({ where: { id: existing.id } });
+    res.json({ topic });
+  })
+);
+
+const moveTopicSchema = z.object({ direction: z.enum(['up', 'down']) });
+
+// Aynı ünite içinde bir üst/alt komşusuyla yer değiştir
+router.post(
+  '/topics/:id/move',
+  asyncHandler(async (req, res) => {
+    const { direction } = moveTopicSchema.parse(req.body);
+    const topic = await prisma.topic.findUnique({ where: { id: req.params.id } });
+    if (!topic || topic.unitNumber == null || topic.orderInUnit == null) {
+      throw new AppError(404, 'Konu bulunamadı');
+    }
+    const siblings = await prisma.topic.findMany({
+      where: { unitNumber: topic.unitNumber },
+      orderBy: { orderInUnit: 'asc' },
+    });
+    const idx = siblings.findIndex((t) => t.id === topic.id);
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= siblings.length) {
+      throw new AppError(400, 'Bu yönde taşınamaz');
+    }
+    const other = siblings[swapIdx];
+
+    await prisma.$transaction(async (tx) => {
+      await tx.topic.update({ where: { id: topic.id }, data: { orderInUnit: other.orderInUnit } });
+      await tx.topic.update({ where: { id: other.id }, data: { orderInUnit: topic.orderInUnit } });
+      await resequenceTopics(tx);
+    });
+    res.json({ ok: true });
   })
 );
 
@@ -145,9 +277,15 @@ router.delete(
   '/topics/:id',
   asyncHandler(async (req, res) => {
     try {
-      await prisma.topic.delete({ where: { id: req.params.id } });
-    } catch {
-      throw new AppError(404, 'Konu bulunamadı');
+      await prisma.$transaction(async (tx) => {
+        await tx.topic.delete({ where: { id: req.params.id } });
+        await resequenceTopics(tx);
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+        throw new AppError(404, 'Konu bulunamadı');
+      }
+      throw err;
     }
     res.json({ ok: true });
   })
@@ -478,7 +616,9 @@ router.get(
         email: true,
         phone: true,
         createdAt: true,
-        children: { select: { id: true, name: true, age: true, birthDate: true, credits: true } },
+        children: {
+          select: { id: true, name: true, age: true, birthDate: true, credits: true, startSequenceOrder: true },
+        },
       },
     });
     if (!parent) throw new AppError(404, 'Veli bulunamadı');
@@ -528,6 +668,36 @@ router.post(
       return c;
     });
     res.status(201).json({ child });
+  })
+);
+
+const startSequenceSchema = z.object({
+  startSequenceOrder: z.number().int().min(1),
+});
+
+// Çocuğun müfredat başlangıç noktasını ata (altındaki materyaller EXEMPT sayılır)
+router.put(
+  '/children/:childId/start-sequence',
+  asyncHandler(async (req, res) => {
+    const data = startSequenceSchema.parse(req.body);
+    const existing = await prisma.childProfile.findUnique({ where: { id: req.params.childId } });
+    if (!existing) throw new AppError(404, 'Çocuk profili bulunamadı');
+
+    const child = await prisma.childProfile.update({
+      where: { id: req.params.childId },
+      data: { startSequenceOrder: data.startSequenceOrder },
+    });
+
+    logEvent({
+      type: 'progress.start_sequence_set',
+      childProfileId: child.id,
+      userId: req.user!.id,
+      actorName: child.name,
+      role: 'ADMIN',
+      meta: { startSequenceOrder: data.startSequenceOrder },
+    });
+
+    res.json({ child });
   })
 );
 

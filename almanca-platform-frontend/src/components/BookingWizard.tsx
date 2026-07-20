@@ -15,10 +15,29 @@ interface Teacher {
   isFavorite: boolean;
 }
 
-interface Topic {
-  id: string;
+type MaterialStateName = 'EXEMPT' | 'COMPLETED' | 'SCHEDULED' | 'NEXT' | 'LOCKED';
+
+interface Material {
+  topicId: string;
+  sequenceOrder: number;
+  state: MaterialStateName;
   name: string;
   description: string | null;
+  unitNumber: number;
+  orderInUnit: number;
+}
+
+interface UnitSummary {
+  unitNumber: number;
+  total: number;
+  completed: number;
+}
+
+interface MaterialsResponse {
+  materials: Material[];
+  units: UnitSummary[];
+  currentUnit: UnitSummary | null;
+  next: Material | null;
 }
 
 type Step = 'teacher' | 'time' | 'topic' | 'done';
@@ -74,12 +93,11 @@ function TeacherAvatar({ teacher, index }: { teacher: Teacher; index: number }) 
 }
 
 interface Props {
-  topics: Topic[];
   credits: number;
   onBooked: () => void;
 }
 
-export function BookingWizard({ topics, credits, onBooked }: Props) {
+export function BookingWizard({ credits, onBooked }: Props) {
   const [step, setStep] = useState<Step>('teacher');
 
   const [teachers, setTeachers] = useState<Teacher[]>([]);
@@ -94,7 +112,16 @@ export function BookingWizard({ topics, credits, onBooked }: Props) {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(serverNow())));
   const [selectedSlots, setSelectedSlots] = useState<BookingSlot[]>([]);
 
-  const [lessonTopics, setLessonTopics] = useState<Record<string, string>>({});
+  // Müfredat ilerlemesi
+  const [materials, setMaterials] = useState<Material[]>([]);
+  const [materialsLoading, setMaterialsLoading] = useState(true);
+  const [currentUnit, setCurrentUnit] = useState<UnitSummary | null>(null);
+  const [nextMaterial, setNextMaterial] = useState<Material | null>(null);
+  // Seçili saat başına: varsayılan olarak sıradaki materyal otomatik atanır (zincirleme).
+  // Bir saat "tekrar dersi"ne çevrilirse burada topicId tutulur ve o saat zincirden çıkar.
+  const [reviewOverrides, setReviewOverrides] = useState<Record<string, string>>({});
+  const [reviewOpenSlots, setReviewOpenSlots] = useState<Set<string>>(new Set());
+
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<BookingResult[] | null>(null);
@@ -111,6 +138,24 @@ export function BookingWizard({ topics, credits, onBooked }: Props) {
         setTeachersLoading(false);
       }
     })();
+  }, []);
+
+  async function loadMaterials() {
+    setMaterialsLoading(true);
+    try {
+      const data = await apiFetch<MaterialsResponse>('/api/materials');
+      setMaterials(data.materials);
+      setCurrentUnit(data.currentUnit);
+      setNextMaterial(data.next);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ders programı yüklenemedi');
+    } finally {
+      setMaterialsLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadMaterials();
   }, []);
 
   const query = search.trim().toLocaleLowerCase('tr');
@@ -171,20 +216,53 @@ export function BookingWizard({ topics, credits, onBooked }: Props) {
   );
 
   function continueToTopic() {
-    setLessonTopics((prev) => {
-      const next = { ...prev };
-      for (const s of selectedSlots) {
-        if (!next[s.id]) next[s.id] = topics[0]?.id ?? '';
-      }
+    setStep('topic');
+  }
+
+  // Zincirleme atama: NEXT + henüz kapsanmamış (LOCKED) materyaller sırayla, tekrara
+  // çevrilmemiş her saate bir tane düşer — bir saat tekrara çevrilince zincirden çıkar,
+  // sonraki saatler otomatik bir öne kayar.
+  const chainMaterials = materials.filter((m) => m.state === 'NEXT' || m.state === 'LOCKED');
+  const reviewCandidates = materials.filter((m) => m.state === 'EXEMPT' || m.state === 'COMPLETED');
+  const lockedMaterials = materials.filter((m) => m.state === 'LOCKED');
+
+  const progressionSlots = selectedSlotsSorted.filter((s) => !reviewOverrides[s.id]);
+  const progressionAssignment = new Map<string, Material>();
+  progressionSlots.forEach((s, i) => {
+    if (chainMaterials[i]) progressionAssignment.set(s.id, chainMaterials[i]);
+  });
+
+  function topicIdFor(slot: BookingSlot): string | null {
+    if (reviewOverrides[slot.id]) return reviewOverrides[slot.id];
+    return progressionAssignment.get(slot.id)?.topicId ?? null;
+  }
+
+  function openReview(slotId: string) {
+    setReviewOpenSlots((prev) => new Set(prev).add(slotId));
+  }
+  function closeReviewPanel(slotId: string) {
+    setReviewOpenSlots((prev) => {
+      const next = new Set(prev);
+      next.delete(slotId);
       return next;
     });
-    setStep('topic');
+  }
+  function discardReview(slotId: string) {
+    closeReviewPanel(slotId);
+    setReviewOverrides((prev) => {
+      const next = { ...prev };
+      delete next[slotId];
+      return next;
+    });
+  }
+  function setReviewChoice(slotId: string, topicId: string) {
+    setReviewOverrides((prev) => ({ ...prev, [slotId]: topicId }));
   }
 
   const canBook =
     selectedSlots.length > 0 &&
     selectedSlots.length <= credits &&
-    selectedSlotsSorted.every((s) => !!lessonTopics[s.id]);
+    selectedSlotsSorted.every((s) => !!topicIdFor(s));
 
   async function confirmBooking() {
     if (selectedSlots.length === 0) return;
@@ -192,11 +270,13 @@ export function BookingWizard({ topics, credits, onBooked }: Props) {
     setError(null);
     const outcome: BookingResult[] = [];
     for (const s of selectedSlotsSorted) {
+      const topicId = topicIdFor(s);
+      if (!topicId) {
+        outcome.push({ slot: s, ok: false, message: 'Bu ders için materyal seçilmedi' });
+        continue;
+      }
       try {
-        await apiFetch('/api/bookings', {
-          method: 'POST',
-          body: { slotId: s.id, topicId: lessonTopics[s.id] },
-        });
+        await apiFetch('/api/bookings', { method: 'POST', body: { slotId: s.id, topicId } });
         outcome.push({ slot: s, ok: true });
       } catch (err) {
         outcome.push({ slot: s, ok: false, message: err instanceof Error ? err.message : 'Yapılamadı' });
@@ -212,13 +292,15 @@ export function BookingWizard({ topics, credits, onBooked }: Props) {
     setStep('done');
     setBusy(false);
     onBooked();
+    loadMaterials();
   }
 
   function startOver() {
     setStep('teacher');
     setSelectedTeacher(null);
     setSelectedSlots([]);
-    setLessonTopics({});
+    setReviewOverrides({});
+    setReviewOpenSlots(new Set());
     setResults(null);
     setError(null);
   }
@@ -231,7 +313,7 @@ export function BookingWizard({ topics, credits, onBooked }: Props) {
 
       {/* ---------- Adım 1: öğretmen seç ---------- */}
       {step === 'teacher' && (
-        <>
+        <div className="bk-step-pane">
           <p className="muted small" style={{ marginTop: 0 }}>
             Önce bir öğretmen seç, sonra müsait saatlerini görüp dersini ayırtırsın.
           </p>
@@ -292,12 +374,12 @@ export function BookingWizard({ topics, credits, onBooked }: Props) {
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
 
       {/* ---------- Adım 2: saat(ler) seç ---------- */}
       {step === 'time' && selectedTeacher && (
-        <>
+        <div className="bk-step-pane">
           <div className="bk-step-head">
             <button type="button" className="btn btn-ghost btn-sm" onClick={backToTeachers}>
               ‹ Öğretmenler
@@ -375,12 +457,12 @@ export function BookingWizard({ topics, credits, onBooked }: Props) {
               </div>
             </div>
           )}
-        </>
+        </div>
       )}
 
-      {/* ---------- Adım 3: her ders için konu seç ve rezerve et ---------- */}
+      {/* ---------- Adım 3: müfredat — sıradaki ders / tekrar / yol haritası ---------- */}
       {step === 'topic' && selectedTeacher && selectedSlots.length > 0 && (
-        <>
+        <div className="bk-step-pane">
           <div className="bk-step-head">
             <button type="button" className="btn btn-ghost btn-sm" onClick={backToTime}>
               ‹ Saatleri değiştir
@@ -390,27 +472,172 @@ export function BookingWizard({ topics, credits, onBooked }: Props) {
             </span>
           </div>
 
-          <p className="muted small">Her ders için bir konu seç.</p>
-          {topics.length === 0 ? (
-            <p className="empty">Konu bulunamadı.</p>
+          {materialsLoading ? (
+            <p className="muted">Yükleniyor…</p>
           ) : (
-            <ul className="bk-lesson-list">
-              {selectedSlotsSorted.map((s) => (
-                <li key={s.id} className="bk-lesson-row">
-                  <span className="bk-lesson-time">{formatTimeRange(s.startTime, s.endTime)}</span>
-                  <select
-                    value={lessonTopics[s.id] ?? ''}
-                    onChange={(e) => setLessonTopics((prev) => ({ ...prev, [s.id]: e.target.value }))}
-                  >
-                    {topics.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                </li>
-              ))}
-            </ul>
+            <>
+              {currentUnit && (
+                <div className="bk-unit-progress">
+                  <div className="bk-unit-progress-head">
+                    <span>Ünite {currentUnit.unitNumber}</span>
+                    <span>
+                      {currentUnit.completed}/{currentUnit.total} tamamlandı
+                    </span>
+                  </div>
+                  <div className="bk-progress-track">
+                    <div
+                      className="bk-progress-fill"
+                      style={{ width: `${(currentUnit.completed / currentUnit.total) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* 1. Büyük "Sıradaki dersiniz" kartı */}
+              <div className={`bk-next-card ${!nextMaterial ? 'is-done' : ''}`}>
+                <span className="bk-next-icon" aria-hidden="true">
+                  {nextMaterial ? '🎯' : '🎉'}
+                </span>
+                <div className="bk-next-body">
+                  {nextMaterial ? (
+                    <>
+                      <span className="bk-next-label">Sıradaki dersiniz</span>
+                      <span className="bk-next-name">
+                        Ünite {nextMaterial.unitNumber} – {nextMaterial.name}
+                      </span>
+                      {nextMaterial.description && <p className="bk-next-desc">{nextMaterial.description}</p>}
+                    </>
+                  ) : (
+                    <>
+                      <span className="bk-next-label">Tebrikler</span>
+                      <span className="bk-next-name">Müfredattaki tüm dersleri tamamladın!</span>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Seçili her saat: varsayılan atama + isteğe bağlı tekrar dersi (2. katman) */}
+              <ul className="bk-lesson-list">
+                {selectedSlotsSorted.map((s, i) => {
+                  const assigned = progressionAssignment.get(s.id) ?? null;
+                  const reviewTopicId = reviewOverrides[s.id];
+                  const reviewMaterial = reviewTopicId
+                    ? (reviewCandidates.find((m) => m.topicId === reviewTopicId) ?? null)
+                    : null;
+                  const isOpen = reviewOpenSlots.has(s.id);
+
+                  return (
+                    <li key={s.id} className="bk-lesson-card">
+                      <div className="bk-lesson-card-head">
+                        <span className={`bk-lesson-badge ${reviewMaterial ? 'is-review' : ''}`}>{i + 1}</span>
+                        <div className="bk-lesson-card-main">
+                          <span className="bk-lesson-time">{formatTimeRange(s.startTime, s.endTime)}</span>
+                          {!isOpen &&
+                            (reviewMaterial ? (
+                              <span className="bk-lesson-assigned is-review">
+                                <span className="topic-pill">Tekrar</span> Ünite {reviewMaterial.unitNumber} –{' '}
+                                {reviewMaterial.name}
+                              </span>
+                            ) : assigned ? (
+                              <span className="bk-lesson-assigned">
+                                Ünite {assigned.unitNumber} – {assigned.name}
+                              </span>
+                            ) : (
+                              <span className="bk-lesson-assigned is-empty">
+                                Müfredatın sonuna geldin — tekrar dersi seç
+                              </span>
+                            ))}
+                        </div>
+                        {!isOpen && (
+                          <button
+                            type="button"
+                            className="bk-lesson-review-chip"
+                            onClick={() => openReview(s.id)}
+                          >
+                            🔄 {reviewMaterial ? 'Değiştir' : 'Tekrar'}
+                          </button>
+                        )}
+                      </div>
+
+                      {isOpen && (
+                        <div className="bk-lesson-review-panel">
+                          {reviewCandidates.length === 0 ? (
+                            <p className="muted small">Henüz tekrar edebileceğin bir ders yok.</p>
+                          ) : (
+                            <select
+                              value={reviewTopicId ?? ''}
+                              onChange={(e) => setReviewChoice(s.id, e.target.value)}
+                            >
+                              <option value="">Konu seç…</option>
+                              {reviewCandidates.map((m) => (
+                                <option key={m.topicId} value={m.topicId}>
+                                  Ünite {m.unitNumber} – {m.name}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                          {reviewMaterial && (
+                            <p className="bk-review-note">
+                              Bu ders tekrar amaçlıdır ve ilerlemenizi değiştirmez. Sıradaki dersiniz:{' '}
+                              {assigned ? `Ünite ${assigned.unitNumber} – ${assigned.name}` : '—'}.
+                            </p>
+                          )}
+                          <div className="bk-lesson-review-actions">
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-sm"
+                              disabled={!reviewTopicId}
+                              onClick={() => closeReviewPanel(s.id)}
+                            >
+                              Tekrar dersi al
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => discardReview(s.id)}
+                            >
+                              Sıradakine geç
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+
+              {/* 3. LOCKED yol haritası — hiç gizlenmez */}
+              {lockedMaterials.length > 0 && (
+                <details className="bk-roadmap" open>
+                  <summary className="bk-roadmap-title">
+                    Yol haritan ({lockedMaterials.length} materyal daha)
+                  </summary>
+                  <ul className="bk-roadmap-list">
+                    {lockedMaterials.map((m) => {
+                      const idx = materials.findIndex((x) => x.topicId === m.topicId);
+                      const prev = idx > 0 ? materials[idx - 1] : null;
+                      return (
+                        <li key={m.topicId} className="bk-roadmap-item">
+                          <span className="bk-roadmap-lock" aria-hidden="true">
+                            🔒
+                          </span>
+                          <div>
+                            <span className="bk-roadmap-name">
+                              Ünite {m.unitNumber} – {m.name}
+                            </span>
+                            {prev && (
+                              <span className="bk-roadmap-hint">
+                                Bu derse geçmek için önce {prev.name} tamamlanmalı
+                              </span>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </details>
+              )}
+            </>
           )}
 
           {selectedSlots.length > credits && (
@@ -423,12 +650,12 @@ export function BookingWizard({ topics, credits, onBooked }: Props) {
           <button className="btn btn-primary" onClick={confirmBooking} disabled={!canBook || busy}>
             {busy ? 'Rezerve ediliyor…' : `Rezerve et (${selectedSlots.length} kredi)`}
           </button>
-        </>
+        </div>
       )}
 
       {/* ---------- Bitti ---------- */}
       {step === 'done' && results && (
-        <div className="bk-done">
+        <div className="bk-done bk-step-pane">
           {results.every((r) => r.ok) ? (
             <>
               <span className="bk-done-icon">🎉</span>

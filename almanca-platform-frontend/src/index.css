@@ -738,6 +738,20 @@ a:hover {
   display: flex;
   flex-direction: column;
 }
+/* Her adım geçişinde içerik hafifçe belirsin — abartısız, kısa bir giriş hareketi */
+@keyframes bkStepIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.bk-step-pane {
+  animation: bkStepIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
 
 /* Arama kutusu + favori filtre çipi */
 .bk-toolbar {
@@ -987,38 +1001,276 @@ a:hover {
   font-weight: 650;
 }
 
-/* Adım 3: her ders için tek satırlık konu seçimi */
+/* Adım 3: müfredat ilerlemesi — ünite ilerleme çubuğu */
+.bk-unit-progress {
+  margin: 0 0 16px;
+}
+.bk-unit-progress-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+.bk-progress-track {
+  height: 8px;
+  border-radius: 999px;
+  background: #e7e2d3;
+  overflow: hidden;
+}
+.bk-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #5cb8fb, #3b5bdb);
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 1. Büyük "Sıradaki dersiniz" kartı */
+.bk-next-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 18px 20px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #dbe7ff, #eef3ff);
+  border: 1px solid #c7d8fb;
+  box-shadow: 0 8px 22px rgba(59, 91, 219, 0.12);
+}
+.bk-next-card.is-done {
+  background: linear-gradient(135deg, #e0f4e3, #f2fbf3);
+  border-color: #bfe6c6;
+  box-shadow: 0 8px 22px rgba(47, 158, 68, 0.12);
+}
+.bk-next-icon {
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.75);
+  font-size: 1.4rem;
+}
+.bk-next-body {
+  flex: 1;
+  min-width: 0;
+}
+.bk-next-label {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+}
+.bk-next-card.is-done .bk-next-label {
+  color: #2f9e44;
+}
+.bk-next-name {
+  display: block;
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-top: 3px;
+}
+.bk-next-desc {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* Seçili saat listesi: kart görünümlü satırlar, her birinde atanmış materyal +
+   tekrar dersine geçiş rozeti */
 .bk-lesson-list {
   list-style: none;
   margin: 0 0 16px;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
 }
-.bk-lesson-row {
+.bk-lesson-card {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fdfaf3;
+  border: 1px solid #ece5d5;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.bk-lesson-card:hover {
+  border-color: #d9cdae;
+  box-shadow: 0 4px 14px rgba(20, 30, 45, 0.06);
+}
+.bk-lesson-card-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
-  flex-wrap: wrap;
-  padding: 10px 13px;
-  border-radius: 10px;
-  background: #fdfaf3;
-  border: 1px solid var(--border);
+}
+.bk-lesson-badge {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  transition: background 0.2s ease;
+}
+.bk-lesson-badge.is-review {
+  background: #f08c00;
+}
+.bk-lesson-card-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 .bk-lesson-time {
   font-weight: 600;
-  font-size: 0.88rem;
+  font-size: 0.82rem;
+  color: var(--muted);
 }
-.bk-lesson-row select {
+.bk-lesson-assigned {
+  font-size: 0.92rem;
+  font-weight: 650;
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.bk-lesson-assigned.is-review {
+  color: #b8730a;
+}
+.bk-lesson-assigned.is-empty {
+  color: var(--muted);
+  font-weight: 550;
+  font-size: 0.85rem;
+}
+.bk-lesson-review-chip {
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  background: #fff;
+  padding: 6px 12px;
+  border-radius: 999px;
   font: inherit;
-  padding: 7px 10px;
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+}
+.bk-lesson-review-chip:hover {
+  border-color: #f08c00;
+  color: #c46a00;
+  transform: translateY(-1px);
+}
+
+/* 2. Katlanabilir tekrar-dersi paneli (satır bazında açılır/kapanır) */
+@keyframes bkPanelIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.bk-lesson-review-panel {
+  width: 100%;
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  background: #fff9ec;
+  border: 1px solid #f5dfa8;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: bkPanelIn 0.18s ease both;
+}
+.bk-lesson-review-panel select {
+  font: inherit;
+  padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: #fff;
   color: var(--text);
-  min-width: 160px;
+}
+.bk-review-note {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #8a5a00;
+  line-height: 1.5;
+}
+.bk-lesson-review-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* 3. LOCKED yol haritası — hiç gizlenmez, yalnızca uzunsa kendi içinde kayar */
+.bk-roadmap {
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: #f3ede0;
+  border: 1px solid #e6dcc6;
+}
+.bk-roadmap-title {
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 650;
+  color: var(--text);
+}
+.bk-roadmap-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: min(38vh, 320px);
+  overflow-y: auto;
+}
+.bk-roadmap-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.6);
+}
+.bk-roadmap-lock {
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.8);
+  font-size: 0.72rem;
+  margin-top: 1px;
+  opacity: 0.85;
+}
+.bk-roadmap-name {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  opacity: 0.85;
+}
+.bk-roadmap-hint {
+  display: block;
+  font-size: 0.76rem;
+  color: var(--muted);
+  margin-top: 1px;
 }
 
 /* Rezervasyon tamamlandı */
@@ -2504,6 +2756,26 @@ textarea:focus {
 .s-row:hover {
   background: #f7f2e8;
 }
+/* Listeye yeni giren satırlar hafifçe belirsin (abartısız) */
+@keyframes sRowFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.s-row {
+  animation: sRowFadeIn 0.25s ease both;
+}
+.s-show-more {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  text-align: center;
+}
 
 /* Yan menü öğeleri */
 .s-nav-item {
@@ -2869,6 +3141,154 @@ textarea:focus {
 }
 .detail-addchild .field { flex: 1; min-width: 150px; margin: 0; }
 .detail-addchild .field-sm { flex: 0 0 76px; min-width: 76px; }
+
+/* İki alanı yan yana koymak için sade satır (dashed .hr-grid kutusu olmadan) */
+.field-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.field-row .field {
+  flex: 1;
+  min-width: 120px;
+  margin: 0;
+}
+.field-row .field-sm {
+  flex: 0 0 100px;
+  min-width: 100px;
+}
+
+/* Konular: ünite sekmeleri */
+.unit-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #ece5d5;
+}
+.unit-tab {
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.unit-tab:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+.unit-tab.is-on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.unit-tab-add {
+  width: 36px;
+  padding: 8px 0;
+  text-align: center;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--accent);
+  border-style: dashed;
+}
+.unit-tab-add.is-on {
+  border-style: solid;
+}
+
+.unit-panel-title {
+  margin: 0 0 12px;
+  font-size: 0.98rem;
+  font-weight: 700;
+}
+/* Ünite sekmesi değişince içerik hafifçe belirsin */
+@keyframes unitPanelIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.unit-panel {
+  animation: unitPanelIn 0.22s ease both;
+}
+
+.unit-topic-row {
+  align-items: stretch;
+  gap: 10px;
+  transition: background 0.16s ease;
+}
+.unit-topic-open {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: 3px;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.unit-topic-open:hover .s-row-main {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.unit-topic-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+.unit-topic-actions .btn {
+  transition: transform 0.12s ease, background 0.15s ease, color 0.15s ease;
+}
+.unit-topic-actions .btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+/* Yukarı/aşağı taşınan satır kısa bir vurguyla geri bildirim versin */
+@keyframes rowMovedPulse {
+  0% {
+    background: rgba(59, 91, 219, 0.16);
+  }
+  100% {
+    background: #fdfaf3;
+  }
+}
+.unit-topic-row.is-moved {
+  animation: rowMovedPulse 0.7s ease;
+  border-radius: 10px;
+}
+
+/* Sağ panel: seçili üniteye materyal ekleme formu */
+.unit-add-card {
+  animation: unitPanelIn 0.22s ease both;
+}
+
+/* Veli detayında çocuk satırı: kredi rozeti + başlangıç noktası birlikte */
+.child-seq-row {
+  align-items: flex-end;
+}
+.child-seq-fields {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+.child-seq-fields .field-sm {
+  flex: 0 0 84px;
+  min-width: 84px;
+  margin: 0;
+}
 
 .hr-grid {
   display: grid;

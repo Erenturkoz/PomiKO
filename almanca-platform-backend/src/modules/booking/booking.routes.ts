@@ -6,6 +6,7 @@ import { asyncHandler, AppError } from '../../lib/errors';
 import { authenticate } from '../../middleware/auth';
 import { requireRole, requireScope } from '../../middleware/roles';
 import { logEvent } from '../../lib/eventlog';
+import { getMaterialStates, healCompletedBookings } from '../progress/progress.service';
 
 const router = Router();
 
@@ -127,7 +128,8 @@ router.get(
   })
 );
 
-// Aktif ders konuları
+// Aktif ders konuları (eski serbest-seçim listesi — müfredat ilerlemesi sonrası
+// /materials tarafından karşılanıyor, geriye dönük uyumluluk için kalıyor)
 router.get(
   '/topics',
   asyncHandler(async (_req, res) => {
@@ -137,6 +139,29 @@ router.get(
       select: { id: true, name: true, description: true },
     });
     res.json({ topics });
+  })
+);
+
+// Müfredat ilerlemesi: aktif çocuğun her materyal için durumu (EXEMPT/COMPLETED/
+// SCHEDULED/NEXT/LOCKED) + ünite bazlı özet ("Ünite 3 · 2/3 tamamlandı" için).
+router.get(
+  '/materials',
+  asyncHandler(async (req, res) => {
+    const childId = req.user!.childId!;
+    const materials = await getMaterialStates(childId);
+
+    const unitMap = new Map<number, { unitNumber: number; total: number; completed: number }>();
+    for (const m of materials) {
+      const u = unitMap.get(m.unitNumber) ?? { unitNumber: m.unitNumber, total: 0, completed: 0 };
+      u.total += 1;
+      if (m.state === 'COMPLETED' || m.state === 'EXEMPT') u.completed += 1;
+      unitMap.set(m.unitNumber, u);
+    }
+    const units = [...unitMap.values()].sort((a, b) => a.unitNumber - b.unitNumber);
+    const next = materials.find((m) => m.state === 'NEXT') ?? null;
+    const currentUnit = next ? units.find((u) => u.unitNumber === next.unitNumber) ?? null : null;
+
+    res.json({ materials, units, currentUnit, next });
   })
 );
 
@@ -160,6 +185,18 @@ router.post(
 
     const topic = await prisma.topic.findUnique({ where: { id: data.topicId } });
     if (!topic || !topic.active) throw new AppError(400, 'Geçerli bir ders konusu seç');
+
+    // Müfredat sırası: materyal ancak EXEMPT/COMPLETED (tekrar dersi) veya NEXT ise
+    // rezerve edilebilir. Frontend'deki kilit yalnızca UX'tir — asıl doğrulama burada.
+    const materialStates = await getMaterialStates(child.id);
+    const materialState = materialStates.find((m) => m.topicId === data.topicId);
+    if (!materialState || materialState.state === 'LOCKED') {
+      throw new AppError(403, 'Bu ders için sıra henüz gelmedi');
+    }
+    if (materialState.state === 'SCHEDULED') {
+      throw new AppError(400, 'Bu ders için zaten planlı bir dersin var');
+    }
+    const isReview = materialState.state === 'EXEMPT' || materialState.state === 'COMPLETED';
 
     const slot = await prisma.availabilitySlot.findUnique({ where: { id: data.slotId } });
     if (!slot) throw new AppError(404, 'Ders saati bulunamadı');
@@ -191,6 +228,7 @@ router.post(
           childProfileId: child.id,
           teacherId: slot.teacherId,
           topicId: topic.id,
+          isReview,
           roomName: `lesson-${slot.id}`,
         },
       });
@@ -218,7 +256,7 @@ router.post(
       childProfileId: child.id,
       actorName: child.name,
       role: 'PARENT',
-      meta: { topic: topic.name, startsAt: slot.startTime.toISOString() },
+      meta: { topic: topic.name, startsAt: slot.startTime.toISOString(), isReview },
     });
 
     res.status(201).json({ booking });
@@ -229,8 +267,10 @@ router.post(
 router.get(
   '/bookings',
   asyncHandler(async (req, res) => {
+    const childId = req.user!.childId!;
+    await healCompletedBookings(childId);
     const bookings = await prisma.booking.findMany({
-      where: { childProfileId: req.user!.childId! },
+      where: { childProfileId: childId },
       orderBy: { slot: { startTime: 'asc' } },
       include: {
         slot: true,
@@ -250,7 +290,7 @@ router.post(
     const childId = req.user!.childId!;
     const booking = await prisma.booking.findUnique({
       where: { id: req.params.id },
-      include: { slot: true },
+      include: { slot: true, topic: true },
     });
     if (!booking || booking.childProfileId !== childId) {
       throw new AppError(404, 'Rezervasyon bulunamadı');
@@ -263,6 +303,28 @@ router.post(
     if (new Date() >= cutoff) {
       throw new AppError(400, 'Ders başlangıcına 30 dakikadan az kaldığı için iptal edilemez');
     }
+
+    // İptal kaydırma: bu ders ilerlemeyi etkileyen (isReview=false) bir dersse, aynı çocuğun
+    // daha ileri sıradaki planlı (isReview=false) dersleri bir geri kayar — tarih/saat aynı
+    // kalır, sadece materyal değişir. Tarih/saat sabit kaldığı için transaction'dan ÖNCE
+    // (değişmeyen) veriyi okumak güvenli.
+    const cancelledSequence = booking.topic?.sequenceOrder ?? null;
+    const laterBookings =
+      !booking.isReview && cancelledSequence !== null
+        ? await prisma.booking.findMany({
+            where: {
+              childProfileId: booking.childProfileId,
+              status: BookingStatus.SCHEDULED,
+              isReview: false,
+              topic: { sequenceOrder: { gt: cancelledSequence } },
+            },
+            include: { topic: true },
+            orderBy: { topic: { sequenceOrder: 'asc' } },
+          })
+        : [];
+
+    const shifted: { bookingId: string; fromSequence: number; toSequence: number }[] = [];
+    const skipped: { bookingId: string; sequenceOrder: number }[] = [];
 
     await prisma.$transaction(async (tx) => {
       await tx.booking.update({
@@ -298,7 +360,43 @@ router.post(
           bookingId: booking.id,
         },
       });
+
+      // laterBookings sabit, transaction'dan önce okundu — sıradaki her ders bir öncekinin
+      // boşalttığı materyale kayar (5→4, 6→5, ... gibi ardışık bir zincirde tek doğru sonuç).
+      for (const lb of laterBookings) {
+        const currentSequence = lb.topic!.sequenceOrder!;
+        const targetTopic = await tx.topic.findUnique({
+          where: { sequenceOrder: currentSequence - 1 },
+        });
+        if (targetTopic) {
+          await tx.booking.update({ where: { id: lb.id }, data: { topicId: targetTopic.id } });
+          shifted.push({ bookingId: lb.id, fromSequence: currentSequence, toSequence: currentSequence - 1 });
+        } else {
+          // Hedef sırada materyal yok (silinmiş konu gibi nadir bir durum) — bu dersi
+          // olduğu gibi bırak, bozma; sadece işaretle ki fark edilsin.
+          skipped.push({ bookingId: lb.id, sequenceOrder: currentSequence });
+        }
+      }
     });
+
+    for (const s of shifted) {
+      logEvent({
+        type: 'progress.cascade_shift',
+        bookingId: s.bookingId,
+        childProfileId: booking.childProfileId,
+        role: 'PARENT',
+        meta: { fromSequence: s.fromSequence, toSequence: s.toSequence, triggeredByCancel: booking.id },
+      });
+    }
+    for (const s of skipped) {
+      logEvent({
+        type: 'progress.cascade_shift_skipped',
+        bookingId: s.bookingId,
+        childProfileId: booking.childProfileId,
+        role: 'PARENT',
+        meta: { sequenceOrder: s.sequenceOrder, reason: 'target_topic_missing', triggeredByCancel: booking.id },
+      });
+    }
 
     logEvent({
       type: 'booking.cancel',

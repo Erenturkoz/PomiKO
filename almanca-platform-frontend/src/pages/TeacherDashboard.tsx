@@ -50,10 +50,12 @@ function avatarColor(id: string) {
 function StudentChip({
   child,
   topic,
+  isReview,
   meta,
 }: {
   child: { id: string; name: string };
   topic: { name: string } | null | undefined;
+  isReview?: boolean;
   meta?: ReactNode;
 }) {
   return (
@@ -65,6 +67,7 @@ function StudentChip({
         <div className="lesson-info-top">
           <span className="lesson-student">{child.name}</span>
           {topic && <span className="topic-pill">{topic.name}</span>}
+          {isReview && <span className="badge badge-warn">Tekrar</span>}
         </div>
         {meta && <div className="lesson-info-meta">{meta}</div>}
       </div>
@@ -228,6 +231,7 @@ export function TeacherDashboard() {
         <StudentChip
           child={b.child}
           topic={b.topic}
+          isReview={b.isReview}
           meta={
             <>
               {formatTimeRange(s.startTime, s.endTime)} · veli: {b.child.parent.name}
@@ -386,6 +390,7 @@ export function TeacherDashboard() {
                     <StudentChip
                       child={nextLesson.booking.child}
                       topic={nextLesson.booking.topic}
+                      isReview={nextLesson.booking.isReview}
                       meta={<>veli: {nextLesson.booking.child.parent.name}</>}
                     />
                   </div>

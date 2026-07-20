@@ -25,7 +25,11 @@ export type EventType =
   // yönetim
   | 'admin.topic_create'
   | 'admin.topic_delete'
-  | 'admin.teacher_create';
+  | 'admin.teacher_create'
+  // müfredat ilerlemesi
+  | 'progress.cascade_shift'
+  | 'progress.cascade_shift_skipped'
+  | 'progress.start_sequence_set';
 
 interface LogInput {
   type: EventType;

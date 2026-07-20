@@ -9,6 +9,7 @@ export interface GridSlot {
   booking: {
     id: string;
     status: string;
+    isReview: boolean;
     topic?: { name: string } | null;
     child: { id: string; name: string; parent: { name: string } };
   } | null;
@@ -65,14 +66,15 @@ export function AvailabilityGrid({ weekStart, slots, onOpenCell, onCloseSlot }: 
                 let label = `${WEEKDAYS[i]} ${row.label}`;
 
                 const b = slot?.booking;
+                const topicLabel = b?.topic ? `${b.topic.name}${b.isReview ? ' · Tekrar' : ''}` : '';
 
                 if (isBooked && past) {
                   // bitmiş ders: görünür ama tıklanamaz
                   cls += ' is-done';
-                  label = `${row.label} · bitti · ${b?.child.name ?? ''}${b?.topic ? ` · ${b.topic.name}` : ''}`;
+                  label = `${row.label} · bitti · ${b?.child.name ?? ''}${topicLabel ? ` · ${topicLabel}` : ''}`;
                 } else if (isBooked) {
                   cls += ' is-booked';
-                  label = `${row.label} · rezerve · ${b?.child.name ?? ''}${b?.topic ? ` · ${b.topic.name}` : ''}`;
+                  label = `${row.label} · rezerve · ${b?.child.name ?? ''}${topicLabel ? ` · ${topicLabel}` : ''}`;
                 } else if (isOpen && !past) {
                   cls += ' is-open';
                   onClick = () => onCloseSlot(slot!.id);
@@ -97,12 +99,12 @@ export function AvailabilityGrid({ weekStart, slots, onOpenCell, onCloseSlot }: 
                     onMouseEnter={() => setHoverRow(row.label)}
                     onMouseLeave={() => setHoverRow((r) => (r === row.label ? null : r))}
                     aria-label={label}
-                    title={b ? `${b.child.name}${b.topic ? ` · ${b.topic.name}` : ''}` : undefined}
+                    title={b ? `${b.child.name}${topicLabel ? ` · ${topicLabel}` : ''}` : undefined}
                   >
                     {isBooked && b && (
                       <span className="cal-inline">
                         <span className="cal-inline-name">{b.child.name}</span>
-                        {b.topic && <span className="cal-inline-topic">{b.topic.name}</span>}
+                        {b.topic && <span className="cal-inline-topic">{topicLabel}</span>}
                       </span>
                     )}
                   </button>

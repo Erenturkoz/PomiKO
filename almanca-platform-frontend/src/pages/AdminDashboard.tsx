@@ -39,7 +39,14 @@ interface ParentRow {
 }
 interface ParentDetail {
   parent: Omit<ParentRow, 'children'> & {
-    children: { id: string; name: string; age: number | null; birthDate: string | null; credits: number }[];
+    children: {
+      id: string;
+      name: string;
+      age: number | null;
+      birthDate: string | null;
+      credits: number;
+      startSequenceOrder: number;
+    }[];
   };
   bookings: {
     id: string;
@@ -82,6 +89,9 @@ interface Topic {
   name: string;
   description: string | null;
   materialFilename: string | null;
+  unitNumber: number | null;
+  orderInUnit: number | null;
+  sequenceOrder: number | null;
 }
 interface Testimonial {
   id: string;
@@ -179,6 +189,8 @@ export function AdminDashboard() {
   const [acName, setAcName] = useState('');
   const [acAge, setAcAge] = useState('');
   const [acBusy, setAcBusy] = useState(false);
+  const [startSeqEdits, setStartSeqEdits] = useState<Record<string, string>>({});
+  const [startSeqBusy, setStartSeqBusy] = useState<string | null>(null);
   const [logs, setLogs] = useState<LogRow[]>([]);
   const [logTotal, setLogTotal] = useState(0);
   const [logType, setLogType] = useState('');
@@ -305,17 +317,43 @@ export function AdminDashboard() {
     }
   }
 
-  /* ---------------- konu oluştur ---------------- */
+  /* ---------------- konular: ünite sekmeleri + oluşturma ---------------- */
+  const [activeUnit, setActiveUnit] = useState<number | null>(null);
   const [cName, setCName] = useState('');
   const [cDesc, setCDesc] = useState('');
   const [cFile, setCFile] = useState<File | null>(null);
+  const [cOrder, setCOrder] = useState('1');
   const [cBusy, setCBusy] = useState(false);
   const [delTopic, setDelTopic] = useState<string | null>(null);
+  const [moveBusy, setMoveBusy] = useState<string | null>(null);
+  const [justMovedId, setJustMovedId] = useState<string | null>(null);
+
+  // Ünite ayrı bir tablo değil: mevcut konuların unitNumber'larından türetilir.
+  // Bir ünite yalnızca içinde en az bir konu olduğunda sekme olarak görünür.
+  const unitNumbers = Array.from(
+    new Set(topics.map((t) => t.unitNumber).filter((n): n is number => n != null))
+  ).sort((a, b) => a - b);
+  const nextUnitNumber = (unitNumbers[unitNumbers.length - 1] ?? 0) + 1;
+  const displayUnit = activeUnit ?? unitNumbers[0] ?? nextUnitNumber;
+  const unitTopics = topics
+    .filter((t) => t.unitNumber === displayUnit)
+    .sort((a, b) => (a.orderInUnit ?? 0) - (b.orderInUnit ?? 0));
+
+  function switchUnit(n: number) {
+    setActiveUnit(n);
+    const count = topics.filter((t) => t.unitNumber === n).length;
+    setCOrder(String(count + 1));
+  }
 
   async function createTopic(e: FormEvent) {
     e.preventDefault();
     if (!cFile) {
       setError('Konu için bir PDF materyali seç');
+      return;
+    }
+    const orderInUnit = Number(cOrder);
+    if (!orderInUnit || orderInUnit < 1) {
+      setError('Geçerli bir sıra numarası gir');
       return;
     }
     setCBusy(true);
@@ -324,6 +362,8 @@ export function AdminDashboard() {
       const form = new FormData();
       form.append('name', cName);
       form.append('description', cDesc);
+      form.append('unitNumber', String(displayUnit));
+      form.append('orderInUnit', String(orderInUnit));
       form.append('file', cFile);
       const res = await fetch(`${API_URL}/api/admin/topics`, {
         method: 'POST',
@@ -336,6 +376,7 @@ export function AdminDashboard() {
       setCName('');
       setCDesc('');
       setCFile(null);
+      setCOrder(String(orderInUnit + 1));
       flash('Konu eklendi.');
       await loadAll();
     } catch (err) {
@@ -354,6 +395,79 @@ export function AdminDashboard() {
       setError(err instanceof Error ? err.message : 'Konu silinemedi');
     } finally {
       setDelTopic(null);
+    }
+  }
+
+  async function moveTopic(id: string, direction: 'up' | 'down') {
+    setMoveBusy(id);
+    setError(null);
+    try {
+      await apiFetch(`/api/admin/topics/${id}/move`, { method: 'POST', body: { direction } });
+      await loadAll();
+      setJustMovedId(id);
+      setTimeout(() => setJustMovedId((cur) => (cur === id ? null : cur)), 700);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Taşınamadı');
+    } finally {
+      setMoveBusy(null);
+    }
+  }
+
+  /* ---------------- konu düzenleme popup'ı ---------------- */
+  const [editTopic, setEditTopic] = useState<Topic | null>(null);
+  const [eName, setEName] = useState('');
+  const [eDesc, setEDesc] = useState('');
+  const [eUnit, setEUnit] = useState('');
+  const [eOrder, setEOrder] = useState('');
+  const [eFile, setEFile] = useState<File | null>(null);
+  const [eBusy, setEBusy] = useState(false);
+
+  function openEditTopic(t: Topic) {
+    setEditTopic(t);
+    setEName(t.name);
+    setEDesc(t.description ?? '');
+    setEUnit(String(t.unitNumber ?? ''));
+    setEOrder(String(t.orderInUnit ?? ''));
+    setEFile(null);
+  }
+
+  async function saveTopicEdit(e: FormEvent) {
+    e.preventDefault();
+    if (!editTopic) return;
+    const unitNumber = Number(eUnit);
+    const orderInUnit = Number(eOrder);
+    if (eName.trim().length < 2) {
+      setError('Konu adı en az 2 karakter olmalı');
+      return;
+    }
+    if (!unitNumber || !orderInUnit) {
+      setError('Geçerli bir ünite ve sıra numarası gir');
+      return;
+    }
+    setEBusy(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append('name', eName);
+      form.append('description', eDesc);
+      form.append('unitNumber', String(unitNumber));
+      form.append('orderInUnit', String(orderInUnit));
+      if (eFile) form.append('file', eFile);
+      const res = await fetch(`${API_URL}/api/admin/topics/${editTopic.id}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${getAccessToken() ?? ''}` },
+        credentials: 'include',
+        body: form,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? 'Konu güncellenemedi');
+      setEditTopic(null);
+      flash('Konu güncellendi.');
+      await loadAll();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Konu güncellenemedi');
+    } finally {
+      setEBusy(false);
     }
   }
 
@@ -534,6 +648,35 @@ export function AdminDashboard() {
     return iso ? new Date(iso).toLocaleDateString('tr-TR') : '—';
   }
 
+  async function saveStartSequence(childId: string) {
+    if (!parentDetail) return;
+    const raw = startSeqEdits[childId];
+    const value = Number(raw);
+    if (!raw || !value || value < 1) {
+      setError('Başlangıç noktası 1 veya daha büyük bir sayı olmalı');
+      return;
+    }
+    setStartSeqBusy(childId);
+    setError(null);
+    try {
+      await apiFetch(`/api/admin/children/${childId}/start-sequence`, {
+        method: 'PUT',
+        body: { startSequenceOrder: value },
+      });
+      setStartSeqEdits((prev) => {
+        const next = { ...prev };
+        delete next[childId];
+        return next;
+      });
+      flash('Başlangıç noktası güncellendi.');
+      await openParentDetail(parentDetail.parent.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Güncellenemedi');
+    } finally {
+      setStartSeqBusy(null);
+    }
+  }
+
   return (
     <div className="student-shell">
       {/* Sol menü */}
@@ -619,11 +762,91 @@ export function AdminDashboard() {
           </>
         )}
 
-        {/* ---------- Ders konuları ---------- */}
+        {/* ---------- Ders konuları (üniteler) — sol: gözat, sağ: materyal ekle ---------- */}
         {tab === 'topics' && (
-          <div className="s-cols">
+          <div className="s-cols s-cols-wide-first">
             <div className="s-card">
-              <h3 className="s-card-title">Yeni ders konusu</h3>
+              <h3 className="s-card-title">Ders konuları</h3>
+
+              <div className="unit-tabs">
+                {unitNumbers.map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    className={`unit-tab ${displayUnit === n ? 'is-on' : ''}`}
+                    onClick={() => switchUnit(n)}
+                  >
+                    Ünite {n}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  className={`unit-tab unit-tab-add ${displayUnit === nextUnitNumber && !unitNumbers.includes(nextUnitNumber) ? 'is-on' : ''}`}
+                  onClick={() => switchUnit(nextUnitNumber)}
+                  title="Yeni ünite ekle"
+                >
+                  +
+                </button>
+              </div>
+
+              <div className="unit-panel" key={displayUnit}>
+                <h4 className="unit-panel-title">
+                  Ünite {displayUnit}
+                  {!unitNumbers.includes(displayUnit) && (
+                    <span className="muted small"> · yeni — sağdaki formdan ilk materyali eklediğinde oluşur</span>
+                  )}
+                </h4>
+
+                {unitTopics.length === 0 ? (
+                  <p className="empty">Bu ünitede henüz materyal yok. Sağdaki formdan ilk materyali ekle.</p>
+                ) : (
+                  <ul className="s-list">
+                    {unitTopics.map((t, i) => (
+                      <li
+                        key={t.id}
+                        className={`s-row unit-topic-row ${justMovedId === t.id ? 'is-moved' : ''}`}
+                      >
+                        <button type="button" className="unit-topic-open" onClick={() => openEditTopic(t)}>
+                          <span className="s-row-main">
+                            {t.orderInUnit}. {t.name}
+                          </span>
+                          {t.description && <span className="muted small">{t.description}</span>}
+                          {t.materialFilename && (
+                            <span className="muted small">Materyal: {t.materialFilename}</span>
+                          )}
+                        </button>
+                        <div className="unit-topic-actions">
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            disabled={i === 0 || moveBusy === t.id}
+                            onClick={() => moveTopic(t.id, 'up')}
+                            aria-label="Yukarı taşı"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            disabled={i === unitTopics.length - 1 || moveBusy === t.id}
+                            onClick={() => moveTopic(t.id, 'down')}
+                            aria-label="Aşağı taşı"
+                          >
+                            ↓
+                          </button>
+                          <button type="button" className="btn btn-ghost btn-sm" onClick={() => setDelTopic(t.id)}>
+                            Sil
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+
+            <div className="s-card unit-add-card" key={`form-${displayUnit}`}>
+              <h3 className="s-card-title">Ünite {displayUnit}'e materyal ekle</h3>
               <form onSubmit={createTopic} className="form">
                 <label className="field">
                   <span>Konu adı</span>
@@ -632,6 +855,15 @@ export function AdminDashboard() {
                 <label className="field">
                   <span>Açıklama (isteğe bağlı)</span>
                   <textarea value={cDesc} onChange={(e) => setCDesc(e.target.value)} rows={2} />
+                </label>
+                <label className="field field-sm">
+                  <span>Ünite içi sıra</span>
+                  <input
+                    inputMode="numeric"
+                    value={cOrder}
+                    onChange={(e) => setCOrder(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                    required
+                  />
                 </label>
                 <label className="field">
                   <span>Materyal (PDF)</span>
@@ -647,30 +879,6 @@ export function AdminDashboard() {
                   {cBusy ? 'Ekleniyor…' : 'Konuyu ekle'}
                 </button>
               </form>
-            </div>
-
-            <div className="s-card">
-              <h3 className="s-card-title">Konular ({topics.length})</h3>
-              {topics.length === 0 ? (
-                <p className="empty">Henüz konu yok.</p>
-              ) : (
-                <ul className="s-list">
-                  {topics.map((t) => (
-                    <li key={t.id} className="s-row">
-                      <div>
-                        <div className="s-row-main">{t.name}</div>
-                        {t.description && <div className="muted small">{t.description}</div>}
-                        {t.materialFilename && (
-                          <div className="muted small">Materyal: {t.materialFilename}</div>
-                        )}
-                      </div>
-                      <button className="btn btn-ghost btn-sm" onClick={() => setDelTopic(t.id)}>
-                        Sil
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
             </div>
           </div>
         )}
@@ -1245,16 +1453,42 @@ export function AdminDashboard() {
             </div>
 
             <h4 className="detail-sub">Çocuklar ({parentDetail.parent.children.length})</h4>
+            <p className="muted small" style={{ marginTop: 0 }}>
+              Başlangıç noktası: bu sıra numarasının altındaki materyaller muaf (EXEMPT) sayılır, çocuk
+              doğrudan bu materyalden itibaren ilerler.
+            </p>
             <ul className="s-list">
               {parentDetail.parent.children.map((c) => (
-                <li key={c.id} className="s-row">
+                <li key={c.id} className="s-row child-seq-row">
                   <div>
                     <div className="s-row-main">{c.name}</div>
                     <div className="muted small">
                       {c.age != null ? `${c.age} yaş · ` : ''}doğum: {fmtDate(c.birthDate)}
                     </div>
                   </div>
-                  <span className="credit-badge">{c.credits} kredi</span>
+                  <div className="child-seq-fields">
+                    <span className="credit-badge">{c.credits} kredi</span>
+                    <label className="field field-sm">
+                      <span>Başlangıç</span>
+                      <input
+                        inputMode="numeric"
+                        value={startSeqEdits[c.id] ?? String(c.startSequenceOrder)}
+                        onChange={(e) =>
+                          setStartSeqEdits((prev) => ({
+                            ...prev,
+                            [c.id]: e.target.value.replace(/\D/g, '').slice(0, 3),
+                          }))
+                        }
+                      />
+                    </label>
+                    <button
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => saveStartSequence(c.id)}
+                      disabled={startSeqBusy === c.id}
+                    >
+                      {startSeqBusy === c.id ? 'Kaydediliyor…' : 'Kaydet'}
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -1313,6 +1547,51 @@ export function AdminDashboard() {
         onConfirm={() => delTopic && deleteTopic(delTopic)}
         onCancel={() => setDelTopic(null)}
       />
+
+      <Modal open={editTopic !== null} title="Konuyu düzenle" onClose={() => setEditTopic(null)}>
+        {editTopic && (
+          <form onSubmit={saveTopicEdit} className="form">
+            <label className="field">
+              <span>Konu adı</span>
+              <input value={eName} onChange={(e) => setEName(e.target.value)} required minLength={2} />
+            </label>
+            <label className="field">
+              <span>Açıklama (isteğe bağlı)</span>
+              <textarea value={eDesc} onChange={(e) => setEDesc(e.target.value)} rows={2} />
+            </label>
+            <div className="field-row">
+              <label className="field field-sm">
+                <span>Ünite</span>
+                <input
+                  inputMode="numeric"
+                  value={eUnit}
+                  onChange={(e) => setEUnit(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                  required
+                />
+              </label>
+              <label className="field field-sm">
+                <span>Ünite içi sıra</span>
+                <input
+                  inputMode="numeric"
+                  value={eOrder}
+                  onChange={(e) => setEOrder(e.target.value.replace(/\D/g, '').slice(0, 2))}
+                  required
+                />
+              </label>
+            </div>
+            <label className="field">
+              <span>Materyali değiştir (isteğe bağlı)</span>
+              <input type="file" accept="application/pdf" onChange={(e) => setEFile(e.target.files?.[0] ?? null)} />
+              <small className="hint">
+                Mevcut: {editTopic.materialFilename ?? '—'} — boş bırakırsan değişmez.
+              </small>
+            </label>
+            <button className="btn btn-primary" type="submit" disabled={eBusy}>
+              {eBusy ? 'Kaydediliyor…' : 'Kaydet'}
+            </button>
+          </form>
+        )}
+      </Modal>
       <ConfirmDialog
         open={delTesti !== null}
         title="Yorumu sil"

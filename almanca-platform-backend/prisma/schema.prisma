@@ -56,6 +56,7 @@ model ChildProfile {
   birthDate    DateTime?
   level        String? // ileride CEFR (A1, A2, ...) — şimdilik boş
   credits      Int       @default(0) // 1 kredi = 1 ders
+  startSequenceOrder Int @default(1) // müfredat ilerlemesi: admin'in atadığı başlangıç sırası (altındaki materyaller EXEMPT sayılır)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -192,6 +193,7 @@ model Booking {
   topicId        String?
   topic          Topic?        @relation(fields: [topicId], references: [id], onDelete: SetNull)
   status         BookingStatus @default(SCHEDULED)
+  isReview       Boolean       @default(false) // true: tekrar dersi — müfredat ilerlemesini etkilemez
   roomName       String? // Daily.co oda adı (ders odası için)
   createdAt      DateTime      @default(now())
 
@@ -211,6 +213,13 @@ model Topic {
   active           Boolean  @default(true)
   materialUrl      String? // yüklenen PDF yolu
   materialFilename String?
+
+  // Müfredat ilerlemesi: bu üçü birlikte atanır (admin oluştururken otomatik en sona eklenir,
+  // sonradan düzenlenebilir). Nullable — yalnızca backfill öncesi geçiş anı için; pratikte hep dolu.
+  unitNumber    Int?
+  orderInUnit   Int?
+  sequenceOrder Int? @unique
+
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
