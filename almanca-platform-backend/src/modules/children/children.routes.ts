@@ -68,6 +68,13 @@ router.get(
       orderBy: { createdAt: 'asc' },
       include: { _count: { select: { consents: true } } },
     });
+    // Çocuk başına toplam yıldız (bookinglerdeki stars toplamı)
+    const starSums = await prisma.booking.groupBy({
+      by: ['childProfileId'],
+      where: { childProfileId: { in: children.map((c) => c.id) } },
+      _sum: { stars: true },
+    });
+    const starsByChild = new Map(starSums.map((s) => [s.childProfileId, s._sum.stars ?? 0]));
     const result = children.map((c) => ({
       id: c.id,
       name: c.name,
@@ -75,6 +82,7 @@ router.get(
       birthDate: c.birthDate,
       level: c.level,
       credits: c.credits,
+      totalStars: starsByChild.get(c.id) ?? 0,
       createdAt: c.createdAt,
       hasConsent: c._count.consents > 0,
     }));

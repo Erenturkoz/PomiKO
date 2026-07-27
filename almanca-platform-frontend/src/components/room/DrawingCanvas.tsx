@@ -12,6 +12,7 @@ interface Props {
   tool: Tool;
   color: string;
   size: number;
+  sticker: string; // 'sticker' aracı seçiliyken yapıştırılacak emoji
   isTeacher: boolean;
   canDraw: boolean;
   clearNonce: number;
@@ -48,6 +49,7 @@ export function DrawingCanvas({
   tool,
   color,
   size,
+  sticker,
   isTeacher,
   canDraw,
   clearNonce,
@@ -74,6 +76,8 @@ export function DrawingCanvas({
   colorRef.current = color;
   const sizeRef = useRef(size);
   sizeRef.current = size;
+  const stickerRef = useRef(sticker);
+  stickerRef.current = sticker;
 
   function getPageStrokes(p: number): Stroke[] {
     let arr = strokesRef.current.get(p);
@@ -88,7 +92,23 @@ export function DrawingCanvas({
     return ((s.size * 8) / REF_H) * height;
   }
 
+  // Sticker boyutu (emoji font px). points[0] merkez kabul edilir.
+  function stickerPx(s: Stroke) {
+    return ((s.size * 40) / REF_H) * height;
+  }
+
   function drawStroke(ctx: CanvasRenderingContext2D, s: Stroke) {
+    if (s.tool === 'sticker') {
+      if (!s.sticker || s.points.length === 0) return;
+      const [nx, ny] = s.points[0];
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.font = `${stickerPx(s)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(s.sticker, nx * width, ny * height);
+      ctx.textAlign = 'start';
+      return;
+    }
     if (s.tool === 'text') {
       if (!s.text || s.points.length === 0) return;
       const [nx, ny] = s.points[0];
@@ -222,13 +242,22 @@ export function DrawingCanvas({
     return [(e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height];
   }
 
-  /** Piksel konumundaki metin stroke'unu bul (kaba sınır kutusu) */
-  function hitText(px: number, py: number): Stroke | null {
+  /** Piksel konumundaki taşınabilir nesneyi (metin veya sticker) bul (kaba sınır kutusu) */
+  function hitMovable(px: number, py: number): Stroke | null {
     const strokes = strokesRef.current.get(pageRef.current) || [];
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
     for (let i = strokes.length - 1; i >= 0; i--) {
       const s = strokes[i];
+      if (s.tool === 'sticker') {
+        if (!s.sticker) continue;
+        const [snx, sny] = s.points[0];
+        const cx = snx * width;
+        const cy = sny * height;
+        const half = stickerPx(s) * 0.6;
+        if (px >= cx - half && px <= cx + half && py >= cy - half && py <= cy + half) return s;
+        continue;
+      }
       if (s.tool !== 'text' || !s.text) continue;
       const [nx, ny] = s.points[0];
       const x = nx * width;
@@ -255,8 +284,8 @@ export function DrawingCanvas({
     const radius = Math.max(12, ((sizeRef.current * 3) / REF_H) * height);
     const dead: string[] = [];
     for (const s of strokes) {
-      if (s.tool === 'text') {
-        continue; // metinler yanlışlıkla silinmesin; metni silmek için üstüne silgiyle TIKLA (aşağıda)
+      if (s.tool === 'text' || s.tool === 'sticker') {
+        continue; // metin/sticker yanlışlıkla silinmesin; silmek için üstüne silgiyle TIKLA (aşağıda)
       }
       for (let i = 0; i < s.points.length; i++) {
         const [nx, ny] = s.points[i];
@@ -331,9 +360,9 @@ export function DrawingCanvas({
     const py = ny * height;
     const t = toolRef.current;
 
-    // İmleç (veya metin aracı) ile mevcut metne tıklanırsa: TAŞIMA başlat
+    // İmleç (veya metin aracı) ile mevcut metne/sticker'a tıklanırsa: TAŞIMA başlat
     if (t === 'none' || t === 'text') {
-      const hit = hitText(px, py);
+      const hit = hitMovable(px, py);
       if (hit) {
         (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
         const [hx, hy] = hit.points[0];
@@ -351,11 +380,28 @@ export function DrawingCanvas({
       return;
     }
 
+    // Sticker: tıklanan yere (merkez) seçili emoji'yi yapıştır
+    if (t === 'sticker') {
+      if (!stickerRef.current) return;
+      const stroke: Stroke = {
+        id: uid(),
+        tool: 'sticker',
+        color: '',
+        size: sizeRef.current,
+        points: [[nx, ny]],
+        sticker: stickerRef.current,
+      };
+      getPageStrokes(pageRef.current).push(stroke);
+      redraw();
+      co.sendAppMessage({ t: 'text', page: pageRef.current, stroke }, '*');
+      return;
+    }
+
     (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
 
     if (t === 'eraser') {
-      // Silgiyle metne tıklanırsa metni sil
-      const hit = hitText(px, py);
+      // Silgiyle metne/sticker'a tıklanırsa onu sil
+      const hit = hitMovable(px, py);
       if (hit) {
         const arr = getPageStrokes(pageRef.current);
         strokesRef.current.set(pageRef.current, arr.filter((s) => s.id !== hit.id));

@@ -12,6 +12,7 @@ export type EventType =
   | 'room.blocked_duplicate'
   | 'room.ended'
   | 'room.media'
+  | 'lesson.stars'
   // rezervasyon / kredi
   | 'booking.create'
   | 'booking.cancel'

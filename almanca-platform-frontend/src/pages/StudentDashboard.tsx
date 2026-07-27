@@ -16,6 +16,7 @@ interface Me {
   age: number | null;
   credits: number;
   avatarEmoji: string | null;
+  totalStars: number;
 }
 
 interface Booking {
@@ -167,6 +168,7 @@ export function StudentDashboard() {
   }
 
   const credits = me?.credits ?? session.child?.credits ?? 0;
+  const totalStars = me?.totalStars ?? 0;
   const childName = me?.name ?? session.child?.name ?? 'Öğrenci';
   const avatarEmoji = me?.avatarEmoji ?? session.child?.avatarEmoji ?? null;
 
@@ -320,9 +322,9 @@ export function StudentDashboard() {
                 <div className="s-stat-label">Yaklaşan Ders</div>
               </div>
               <div className="s-stat">
-                <span className="s-stat-icon" style={{ background: '#d0bfff' }} />
-                <div className="s-stat-num">—</div>
-                <div className="s-stat-label">Rozet Sayısı</div>
+                <span className="s-stat-icon" style={{ background: '#ffe08a' }} />
+                <div className="s-stat-num">{totalStars}</div>
+                <div className="s-stat-label">Toplam Yıldız</div>
               </div>
             </div>
 

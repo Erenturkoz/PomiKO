@@ -13,16 +13,20 @@ const router = Router();
 // Tüm uçlar: giriş + PARENT rolü + PROFİL modu (aktif çocuk jetonda)
 router.use(authenticate, requireRole(Role.PARENT), requireScope('profile'));
 
-// Aktif çocuğun bilgisi + kredisi (panel başlığı için)
+// Aktif çocuğun bilgisi + kredisi + toplam yıldızı (panel başlığı için)
 router.get(
   '/me',
   asyncHandler(async (req, res) => {
-    const child = await prisma.childProfile.findUnique({
-      where: { id: req.user!.childId! },
-      select: { id: true, name: true, age: true, credits: true, avatarEmoji: true },
-    });
+    const childId = req.user!.childId!;
+    const [child, starsAgg] = await Promise.all([
+      prisma.childProfile.findUnique({
+        where: { id: childId },
+        select: { id: true, name: true, age: true, credits: true, avatarEmoji: true },
+      }),
+      prisma.booking.aggregate({ where: { childProfileId: childId }, _sum: { stars: true } }),
+    ]);
     if (!child) throw new AppError(404, 'Profil bulunamadı');
-    res.json({ child });
+    res.json({ child: { ...child, totalStars: starsAgg._sum.stars ?? 0 } });
   })
 );
 

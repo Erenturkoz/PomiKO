@@ -210,9 +210,11 @@ model Booking {
   isReview       Boolean       @default(false) // true: tekrar dersi — müfredat ilerlemesini etkilemez
   payoutStatus   PayoutStatus  @default(PENDING)
   roomName       String? // Daily.co oda adı (ders odası için)
+  stars          Int           @default(0) // öğretmenin bu derste öğrenciye verdiği yıldız (0..5)
   createdAt      DateTime      @default(now())
 
   materials Material[]
+  roomSessions RoomSession[]
 
   @@index([childProfileId])
   @@index([teacherId])
@@ -275,6 +277,22 @@ model RefreshToken {
 // KVKK: içerik (mesaj/çizim) TUTULMAZ; IP şimdilik tutulmuyor.
 // Saklama: kısa (varsayılan 90 gün) — yayına alırken uzatılabilir.
 // ---------------------------------------------------------------
+// Aktif ders odası oturumu — tek cihaz kuralı bunun üzerinden yürür (bookingId+role başına
+// tek satır). Heartbeat ile tazelenir; sayfa yenileme/çökme gibi temiz ayrılmayan durumlarda
+// Daily'nin presence bilgisi saniyelerce gecikebildiğinden (yaşanmış bug: yenileme sonrası
+// "zaten bağlısın" hatası takılı kalıyordu), tek-cihaz kararı artık Daily değil bu tablo verir.
+model RoomSession {
+  id         String   @id @default(cuid())
+  bookingId  String
+  booking    Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  role       String // 'TEACHER' | 'PARENT'
+  sessionId  String // bu bağlantıya özel rastgele değer (heartbeat/ayrılma eşleştirmesi)
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+
+  @@unique([bookingId, role])
+}
+
 model EventLog {
   id             String   @id @default(cuid())
   type           String // örn. 'room.lobby', 'room.connect', 'room.leave', 'booking.create'

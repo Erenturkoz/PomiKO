@@ -20,10 +20,12 @@ export function registerAuthFailureHandler(fn: () => void) {
 export class ApiError extends Error {
   status: number;
   details?: unknown;
-  constructor(status: number, message: string, details?: unknown) {
+  code?: string;
+  constructor(status: number, message: string, details?: unknown, code?: string) {
     super(message);
     this.status = status;
     this.details = details;
+    this.code = code;
   }
 }
 
@@ -57,6 +59,8 @@ interface RequestOptions {
   body?: unknown;
   // 401 sonrası refresh denenip tekrar gönderildiğinde sonsuz döngüyü engeller
   _retried?: boolean;
+  // Sayfa kapanırken/yenilenirken de isteğin gönderilmeye devam etmesi için (ör. oturum temizliği)
+  keepalive?: boolean;
 }
 
 export async function apiFetch<T = unknown>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -68,6 +72,7 @@ export async function apiFetch<T = unknown>(path: string, options: RequestOption
     headers,
     credentials: 'include',
     body: options.body ? JSON.stringify(options.body) : undefined,
+    keepalive: options.keepalive,
   });
 
   // Access token süresi dolmuşsa: bir kez refresh dene, sonra tekrar gönder
@@ -85,7 +90,7 @@ export async function apiFetch<T = unknown>(path: string, options: RequestOption
   const data = text ? JSON.parse(text) : null;
 
   if (!res.ok) {
-    throw new ApiError(res.status, data?.error ?? 'İstek başarısız', data?.details);
+    throw new ApiError(res.status, data?.error ?? 'İstek başarısız', data?.details, data?.code);
   }
   return data as T;
 }

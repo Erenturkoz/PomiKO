@@ -17,7 +17,7 @@ export function errorHandler(
     return;
   }
   if (err instanceof AppError) {
-    res.status(err.status).json({ error: err.message });
+    res.status(err.status).json({ error: err.message, ...(err.code ? { code: err.code } : {}) });
     return;
   }
   // Prisma "unique constraint" gibi bilinen hatalar için basit kontrol

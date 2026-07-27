@@ -3,12 +3,16 @@ import type { DailyParticipant } from '@daily-co/daily-js';
 
 interface Props {
   participant?: DailyParticipant | null;
+  /** Katılımcı henüz gelmediğinde gösterilecek rol etiketi (ör. "Öğretmen"). */
   label: string;
   mirror?: boolean;
 }
 
 // Bir katılımcının kamera akışını <video>'ya bağlar (Daily call object, ham track)
 export function VideoTile({ participant, label, mirror = false }: Props) {
+  // Token'daki user_name gerçek adı taşır (öğretmen adı / çocuk adı). Katılımcı
+  // varsa adını, yoksa rol etiketini göster.
+  const displayName = participant?.user_name?.trim() || label;
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoState = participant?.tracks?.video?.state;
   const track = participant?.tracks?.video?.persistentTrack ?? null;
@@ -37,7 +41,7 @@ export function VideoTile({ participant, label, mirror = false }: Props) {
       ) : (
         <div className="cam-off">{participant ? 'Kamera kapalı' : 'Bekleniyor…'}</div>
       )}
-      <span className="cam-name">{label}</span>
+      <span className="cam-name">{displayName}</span>
     </div>
   );
 }

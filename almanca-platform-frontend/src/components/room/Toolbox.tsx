@@ -1,4 +1,4 @@
-import { Tool } from './drawTypes';
+import { Tool, STICKERS } from './drawTypes';
 
 const COLORS = ['#e03131', '#1971c2', '#2f9e44', '#f08c00', '#1c2430', '#ffffff'];
 const COLOR_NAMES: Record<string, string> = {
@@ -22,6 +22,8 @@ interface Props {
   setColor: (c: string) => void;
   size: number;
   setSize: (s: number) => void;
+  sticker: string;
+  setSticker: (s: string) => void;
   canDraw: boolean;
   canClear: boolean;
   onClear: () => void;
@@ -46,6 +48,9 @@ const icons: Record<string, JSX.Element> = {
       <path d="M12 4v16" />
       <path d="M9 20h6" />
     </>
+  ),
+  sticker: (
+    <path d="M12 3l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9 6.8 19.2l1-5.8L3.5 9.2l5.9-.9z" />
   ),
   trash: (
     <>
@@ -91,7 +96,7 @@ function ToolBtn({
   );
 }
 
-export function Toolbox({ tool, setTool, color, setColor, size, setSize, canDraw, canClear, onClear }: Props) {
+export function Toolbox({ tool, setTool, color, setColor, size, setSize, sticker, setSticker, canDraw, canClear, onClear }: Props) {
   if (!canDraw) {
     return (
       <aside className="toolbox">
@@ -100,26 +105,46 @@ export function Toolbox({ tool, setTool, color, setColor, size, setSize, canDraw
     );
   }
 
+  const isSticker = tool === 'sticker';
+
   return (
     <aside className="toolbox">
       <ToolBtn active={tool === 'none'} onClick={() => setTool('none')} title="İmleç" name="cursor" />
       <ToolBtn active={tool === 'pen'} onClick={() => setTool('pen')} title="Kalem" name="pen" />
       <ToolBtn active={tool === 'eraser'} onClick={() => setTool('eraser')} title="Silgi" name="eraser" />
       <ToolBtn active={tool === 'text'} onClick={() => setTool('text')} title="Metin" name="text" />
+      <ToolBtn active={isSticker} onClick={() => setTool('sticker')} title="Sticker" name="sticker" />
 
       <div className="tb-sep" />
-      <div className="tb-colors">
-        {COLORS.map((c) => (
-          <button
-            key={c}
-            className={`tb-color ${color === c ? 'is-on' : ''}`}
-            style={{ background: c }}
-            onClick={() => setColor(c)}
-            title={COLOR_NAMES[c] ?? 'Renk'}
-            aria-label={`Renk: ${COLOR_NAMES[c] ?? c}`}
-          />
-        ))}
-      </div>
+      {isSticker ? (
+        // Sticker seçili: tahtaya yapıştırılacak emoji seçici
+        <div className="tb-stickers">
+          {STICKERS.map((s) => (
+            <button
+              key={s}
+              className={`tb-sticker ${sticker === s ? 'is-on' : ''}`}
+              onClick={() => setSticker(s)}
+              title={`Sticker: ${s}`}
+              aria-label={`Sticker: ${s}`}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      ) : (
+        <div className="tb-colors">
+          {COLORS.map((c) => (
+            <button
+              key={c}
+              className={`tb-color ${color === c ? 'is-on' : ''}`}
+              style={{ background: c }}
+              onClick={() => setColor(c)}
+              title={COLOR_NAMES[c] ?? 'Renk'}
+              aria-label={`Renk: ${COLOR_NAMES[c] ?? c}`}
+            />
+          ))}
+        </div>
+      )}
 
       <div className="tb-sep" />
       <div className="tb-sizes">
@@ -128,7 +153,7 @@ export function Toolbox({ tool, setTool, color, setColor, size, setSize, canDraw
             key={s.value}
             className={`tb-size ${size === s.value ? 'is-on' : ''}`}
             onClick={() => setSize(s.value)}
-            title={s.label}
+            title={isSticker ? `${s.label} sticker` : s.label}
             aria-label={s.label}
           >
             <span className="tb-dot" style={{ width: s.dot, height: s.dot }} />

@@ -101,24 +101,3 @@ export async function createMeetingToken(opts: TokenOptions): Promise<string> {
   }
   return res.data.token as string;
 }
-
-// Odadaki CANLI katılımcıları getir (presence).
-// Aynı kişinin/rolün ikinci kez girmesini engellemek için kullanılır.
-// Not: ghost (admin, hasPresence:false) burada görünmez — istediğimiz de bu.
-export async function getRoomPresence(
-  roomName: string
-): Promise<{ userId: string | null; userName: string | null }[]> {
-  const res = await dailyFetch<any>(`/rooms/${roomName}/presence`);
-  if (!res.ok) {
-    // Oda henüz yoksa/boşsa Daily 404 dönebilir → kimse yok kabul et
-    if (res.status === 404) return [];
-    // Presence alınamazsa dersi engellemeyelim; sadece logla
-    console.error('[Daily] presence alınamadı:', res.status, res.data);
-    return [];
-  }
-  const list: any[] = res.data?.data ?? [];
-  return list.map((p) => ({
-    userId: p?.userId ?? p?.user_id ?? null,
-    userName: p?.userName ?? p?.user_name ?? null,
-  }));
-}

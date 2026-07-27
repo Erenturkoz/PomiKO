@@ -9,6 +9,7 @@ interface Child {
   name: string;
   age: number | null;
   credits: number;
+  totalStars: number;
 }
 
 const TOPUP_OPTIONS = [1, 5, 10];
@@ -133,6 +134,7 @@ export function AccountHome() {
                 </button>
                 <div className="ph-name">{c.name}</div>
                 {c.age != null && <div className="ph-age">{c.age} yaş</div>}
+                <div className="ph-stars">⭐ {c.totalStars} yıldız</div>
                 <button
                   className="ph-credit"
                   onClick={() => setTopupChild(c)}

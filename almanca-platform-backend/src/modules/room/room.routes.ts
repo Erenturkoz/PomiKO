@@ -1,9 +1,10 @@
+import { randomUUID } from 'crypto';
 import { Router } from 'express';
-import { Role, BookingStatus } from '@prisma/client';
+import { Role, BookingStatus, Prisma } from '@prisma/client';
 import { prisma } from '../../lib/prisma';
 import { asyncHandler, AppError } from '../../lib/errors';
 import { authenticate } from '../../middleware/auth';
-import { ensureRoom, createMeetingToken, getRoomPresence } from '../../lib/daily';
+import { ensureRoom, createMeetingToken } from '../../lib/daily';
 import { logEvent } from '../../lib/eventlog';
 import { z } from 'zod';
 
@@ -12,6 +13,43 @@ router.use(authenticate); // her rol girebilir; yetki booking'e göre kontrol ed
 
 // Ders ekranına (lobiye) başlangıçtan kaç dakika önce girilebilir
 const LOBBY_MINUTES = 10;
+
+// Bir oturumdan bu kadar süre heartbeat gelmezse "bayat" sayılır ve yeni bir bağlantı
+// devralabilir (sekme yenilendi/kapandı/çöktü demektir). İstemci ~7 sn'de bir heartbeat atar.
+const SESSION_STALE_MS = 20_000;
+
+// TEK CİHAZ KURALI: bookingId+role başına DB'de tek "aktif oturum" satırı (RoomSession).
+// Daily'nin presence bilgisi ungraceful kopmalarda (yenileme/çökme) saniyelerce/dakikalarca
+// gecikebiliyor — bu yüzden tek doğru kaynak artık Daily değil, heartbeat ile taze tutulan bu
+// tablo. Satır yoksa oluştur; varsa ve taze ise 409; bayatsa devral (sessionId'yi değiştir).
+async function claimRoomSession(bookingId: string, role: Role): Promise<string> {
+  const sessionId = randomUUID();
+  const now = new Date();
+  try {
+    await prisma.roomSession.create({ data: { bookingId, role, sessionId, lastSeenAt: now } });
+    return sessionId;
+  } catch (err) {
+    if (!(err instanceof Prisma.PrismaClientKnownRequestError) || err.code !== 'P2002') throw err;
+    const existing = await prisma.roomSession.findUnique({
+      where: { bookingId_role: { bookingId, role } },
+    });
+    const stale = !existing || now.getTime() - existing.lastSeenAt.getTime() > SESSION_STALE_MS;
+    if (!stale) {
+      throw new AppError(
+        409,
+        role === Role.TEACHER
+          ? 'Bu derse zaten başka bir cihazdan/sekmeden girilmiş. Diğer oturumu kapatıp tekrar dene.'
+          : 'Bu derse zaten girilmiş. Aynı anda tek cihazdan katılabilirsin; diğer sekmeyi/cihazı kapat.',
+        'SESSION_ACTIVE'
+      );
+    }
+    await prisma.roomSession.update({
+      where: { bookingId_role: { bookingId, role } },
+      data: { sessionId, lastSeenAt: now },
+    });
+    return sessionId;
+  }
+}
 
 // Booking'i ilişkileriyle yükle ve erişim yetkisini doğrula
 async function loadAuthorizedBooking(
@@ -87,6 +125,7 @@ router.post(
       serverNow: now.toISOString(),
       startsAt: new Date(now.getTime() - 60_000).toISOString(), // test: ders "başlamış" sayılır
       endsAt: new Date(now.getTime() + 6 * 60 * 60_000).toISOString(), // test: uzun süre açık
+      stars: 0,
       material: topic?.materialUrl
         ? { name: topic.name, fileUrl: topic.materialUrl, filename: topic.materialFilename }
         : null,
@@ -142,6 +181,7 @@ router.get(
       startsAt: booking.slot.startTime.toISOString(),
       endsAt: booking.slot.endTime.toISOString(),
       lobbyOpensAt: new Date(lobbyOpensAt).toISOString(),
+      stars: booking.stars,
       material: booking.topic?.materialUrl
         ? {
             name: booking.topic.name,
@@ -182,25 +222,22 @@ router.post(
 
     const roomName = booking.roomName ?? `lesson-${booking.id}`;
 
-    // TEK GİRİŞ KURALI: odada aynı anda yalnızca 1 öğretmen + 1 öğrenci olabilir.
-    // Admin (ghost) presence'ta görünmez, bu kuraldan etkilenmez.
+    // TEK CİHAZ KURALI: admin (ghost) bu kuraldan muaf, presence'ta zaten görünmüyor.
+    let sessionId: string | null = null;
     if (role !== Role.ADMIN) {
-      const present = await getRoomPresence(roomName);
-      const already = present.some((p) => p.userId === role);
-      if (already) {
-        logEvent({
-          type: 'room.blocked_duplicate',
-          bookingId: booking.id,
-          userId: req.user!.id,
-          childProfileId: booking.childProfileId,
-          role,
-        });
-        throw new AppError(
-          409,
-          role === Role.TEACHER
-            ? 'Bu derse zaten başka bir cihazdan/sekmeden girilmiş. Diğer oturumu kapatıp tekrar dene.'
-            : 'Bu derse zaten girilmiş. Aynı anda tek cihazdan katılabilirsin; diğer sekmeyi/cihazı kapat.'
-        );
+      try {
+        sessionId = await claimRoomSession(booking.id, role);
+      } catch (err) {
+        if (err instanceof AppError && err.code === 'SESSION_ACTIVE') {
+          logEvent({
+            type: 'room.blocked_duplicate',
+            bookingId: booking.id,
+            userId: req.user!.id,
+            childProfileId: booking.childProfileId,
+            role,
+          });
+        }
+        throw err;
       }
     }
 
@@ -236,9 +273,11 @@ router.post(
       roomUrl: room.url,
       token,
       role,
+      sessionId,
       serverNow: new Date().toISOString(),
       startsAt: booking.slot.startTime.toISOString(),
       endsAt: booking.slot.endTime.toISOString(),
+      stars: booking.stars,
       material: booking.topic?.materialUrl
         ? {
             name: booking.topic.name,
@@ -247,6 +286,56 @@ router.post(
           }
         : null,
     });
+  })
+);
+
+// Oturumu canlı tut: istemci ders içindeyken periyodik olarak çağırır. sessionId bu bağlantıya
+// aitse (başka bir cihaz devralmadıysa) lastSeenAt tazelenir; eşleşmiyorsa (ok:false) istemci
+// başka bir cihazın bu oturumu devraldığını anlar ve bağlantısını nazikçe sonlandırmalı.
+const heartbeatSchema = z.object({ sessionId: z.string().min(1) });
+
+router.post(
+  '/:bookingId/heartbeat',
+  asyncHandler(async (req, res) => {
+    const { sessionId } = heartbeatSchema.parse(req.body);
+    const role = req.user!.role;
+    if (role === Role.ADMIN) {
+      res.json({ ok: true });
+      return;
+    }
+    const booking = await loadAuthorizedBooking(req.params.bookingId, req.user!);
+    const updated = await prisma.roomSession.updateMany({
+      where: { bookingId: booking.id, role, sessionId },
+      data: { lastSeenAt: new Date() },
+    });
+    res.json({ ok: updated.count > 0 });
+  })
+);
+
+// Öğretmen öğrenciye yıldız verir (0..5). Bu derse özeldir ve kalıcı olarak Booking.stars'a
+// yazılır (öğrenci/veli panelinde toplam olarak görünür). Canlı efekt istemcide app-message
+// ile senkronlanır; bu uç yalnızca KALICILIK içindir. "Ayarla" mantığı: gönderilen değer
+// mutlak yıldız sayısıdır (artır/azalt değil), böylece geri alma da desteklenir.
+const starsSchema = z.object({ count: z.number().int().min(0).max(5) });
+
+router.post(
+  '/:bookingId/stars',
+  asyncHandler(async (req, res) => {
+    if (req.user!.role !== Role.TEACHER) {
+      throw new AppError(403, 'Yıldızları yalnızca öğretmen verebilir');
+    }
+    const { count } = starsSchema.parse(req.body);
+    const booking = await loadAuthorizedBooking(req.params.bookingId, req.user!);
+    await prisma.booking.update({ where: { id: booking.id }, data: { stars: count } });
+    logEvent({
+      type: 'lesson.stars',
+      bookingId: booking.id,
+      userId: req.user!.id,
+      childProfileId: booking.childProfileId,
+      role: Role.TEACHER,
+      meta: { count },
+    });
+    res.json({ ok: true, stars: count });
   })
 );
 
@@ -270,6 +359,17 @@ router.post(
       role: req.user!.role,
       meta: data.meta ?? null,
     });
+    // Temiz ayrılışta oturum kaydını hemen bırak — bir sonraki bağlantı SESSION_STALE_MS'i
+    // beklemeden anında devralabilsin. sessionId eşleşmiyorsa (zaten devredilmiş eski bir
+    // oturuma ait beacon) dokunma — yeni oturumu yanlışlıkla silmeyelim.
+    if (data.type === 'room.leave' && req.user!.role !== Role.ADMIN) {
+      const sid = typeof data.meta?.sessionId === 'string' ? data.meta.sessionId : undefined;
+      if (sid) {
+        await prisma.roomSession
+          .deleteMany({ where: { bookingId: booking.id, role: req.user!.role, sessionId: sid } })
+          .catch(() => undefined);
+      }
+    }
     res.json({ ok: true });
   })
 );

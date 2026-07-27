@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { DailyCall, DailyParticipant } from '@daily-co/daily-js';
 import { VideoTile } from './VideoTile';
+import { IcCamera } from '../icons';
 
 interface Device {
   deviceId: string;
@@ -102,7 +103,9 @@ export function PreJoin({
     return (
       <div className="prejoin">
         <div className="prejoin-card">
-          <h1 className="prejoin-title">Gizli izleme</h1>
+          <h1 className="prejoin-title">
+            <IcCamera size={18} className="title-icon" /> Gizli izleme
+          </h1>
           <p className="muted">
             Derse görünmez gözlemci olarak katılacaksın. Öğretmen ve öğrenci seni görmez, duymaz.
           </p>
@@ -117,7 +120,9 @@ export function PreJoin({
   return (
     <div className="prejoin">
       <div className="prejoin-card">
-        <h1 className="prejoin-title">Derse hazırlan</h1>
+        <h1 className="prejoin-title">
+          <IcCamera size={18} className="title-icon" /> Derse hazırlan
+        </h1>
         <p className="muted">
           Kamera ve mikrofonunu kontrol et. Ders saati gelince "Derse bağlan" butonu açılır.
         </p>

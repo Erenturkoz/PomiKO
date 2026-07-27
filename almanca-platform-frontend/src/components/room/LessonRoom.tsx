@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { DailyCall, DailyParticipant } from '@daily-co/daily-js';
 import { VideoTile, ParticipantAudio } from './VideoTile';
 import { MaterialStage } from './MaterialStage';
 import { Toolbox } from './Toolbox';
-import { Tool } from './drawTypes';
+import { Tool, STICKERS } from './drawTypes';
 import { ConfirmDialog } from '../ConfirmDialog';
 
 interface Material {
@@ -41,6 +41,27 @@ const IcUrgent = () => (
     <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
   </svg>
 );
+const IcStar = ({ filled = false, size = 22 }: { filled?: boolean; size?: number }) => (
+  <svg
+    viewBox="0 0 24 24"
+    width={size}
+    height={size}
+    fill={filled ? '#ffd43b' : 'none'}
+    stroke={filled ? '#f59f00' : 'currentColor'}
+    strokeWidth="1.7"
+    strokeLinejoin="round"
+  >
+    <path d="M12 3l2.7 5.5 6 .9-4.35 4.2 1 6L12 17.8 6.65 19.6l1-6L3.3 9.4l6-.9z" />
+  </svg>
+);
+
+// Tam ekran kutlama için dağıtılmış yıldız konumları (deterministik → her oynatışta aynı düzen)
+const CELEBRATE_BITS = Array.from({ length: 18 }, (_, i) => ({
+  left: `${4 + ((i * 53) % 92)}%`,
+  top: `${8 + ((i * 37) % 82)}%`,
+  size: 20 + ((i * 11) % 30),
+  delay: `${(i % 7) * 70}ms`,
+}));
 
 interface Props {
   co: DailyCall;
@@ -50,6 +71,8 @@ interface Props {
   micOn: boolean;
   camOn: boolean;
   remainingMs: number;
+  initialStars: number;
+  onPersistStars: (count: number) => void;
   onToggleMic: () => void;
   onToggleCam: () => void;
   onLeave: () => void;
@@ -63,6 +86,8 @@ export function LessonRoom({
   micOn,
   camOn,
   remainingMs,
+  initialStars,
+  onPersistStars,
   onToggleMic,
   onToggleCam,
   onLeave,
@@ -78,9 +103,60 @@ export function LessonRoom({
   const [tool, setTool] = useState<Tool>('none');
   const [color, setColor] = useState('#e03131');
   const [size, setSize] = useState(4);
+  const [sticker, setSticker] = useState(STICKERS[0]);
   const [clearNonce, setClearNonce] = useState(0);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
+
+  // --- Yıldızlar: öğretmen tek tek GÖNDERİR (max 5, geri alma yok); app-message ile
+  //     senkron, backend'de kalıcı. Her yeni yıldızda öğrencinin tüm ekranında kutlama. ---
+  const [stars, setStars] = useState(initialStars);
+  const starsRef = useRef(initialStars);
+  starsRef.current = stars;
+  const [celebrateKey, setCelebrateKey] = useState(0); // her artışta artar → efekti yeniden oynatır
+  const prevStarsRef = useRef(initialStars);
+
+  // Gelen yıldız mesajını dinle (gönderen kendi mesajını almaz → bu öğrenci/gözlemci tarafı)
+  useEffect(() => {
+    function onMsg(ev: any) {
+      const d = ev?.data;
+      if (d?.t === 'stars' && typeof d.count === 'number') {
+        setStars(Math.max(0, Math.min(5, d.count)));
+      }
+    }
+    co.on('app-message', onMsg);
+    return () => {
+      co.off('app-message', onMsg);
+    };
+  }, [co]);
+
+  // Öğretmen: yeni katılımcı gelince güncel yıldız sayısını yolla (geç katılan da görsün)
+  useEffect(() => {
+    if (role !== 'TEACHER') return;
+    function onJoin() {
+      co.sendAppMessage({ t: 'stars', count: starsRef.current }, '*');
+    }
+    co.on('participant-joined', onJoin);
+    return () => {
+      co.off('participant-joined', onJoin);
+    };
+  }, [co, role]);
+
+  // Yıldız ARTINCA kutlama efektini tetikle (öğrenci ekranında tam ekran)
+  useEffect(() => {
+    if (stars > prevStarsRef.current) setCelebrateKey((n) => n + 1);
+    prevStarsRef.current = stars;
+  }, [stars]);
+
+  // Öğretmen bir yıldız GÖNDERİR: mevcut +1 (5'te durur). Azaltma/dial yok.
+  function sendStar() {
+    if (role !== 'TEACHER') return;
+    const next = Math.min(5, stars + 1);
+    if (next === stars) return;
+    setStars(next);
+    co.sendAppMessage({ t: 'stars', count: next }, '*');
+    onPersistStars(next);
+  }
 
   const totalSec = Math.max(0, Math.ceil(remainingMs / 1000));
   const mm = Math.floor(totalSec / 60);
@@ -113,23 +189,52 @@ export function LessonRoom({
             </button>
           </div>
         )}
+
+        {/* Öğretmen: kameraların altında "Yıldız Gönder" paneli (tek tek gönderir, 5'te dolar) */}
+        {role === 'TEACHER' && (
+          <div className="star-send">
+            <button
+              className="star-send-btn"
+              onClick={sendStar}
+              disabled={stars >= 5}
+              title={stars >= 5 ? 'Tüm yıldızlar verildi' : 'Öğrenciye yıldız gönder'}
+            >
+              <IcStar filled size={20} />
+              <span>{stars >= 5 ? 'Tamamlandı' : 'Yıldız Gönder'}</span>
+            </button>
+            <div className="star-send-track" aria-label={`${stars}/5 yıldız gönderildi`}>
+              {[1, 2, 3, 4, 5].map((i) => (
+                <IcStar key={i} filled={i <= stars} size={16} />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Orta: ekranı kaplayan materyal + çizim */}
+      {/* Orta: ekranı kaplayan materyal / beyaz tahta + çizim */}
       <div className="rs-center">
-        {material ? (
-          <MaterialStage
-            co={co}
-            fileUrl={material.fileUrl}
-            isTeacher={isTeacher}
-            canDraw={!isObserver}
-            tool={tool}
-            color={color}
-            size={size}
-            clearNonce={clearNonce}
-          />
-        ) : (
-          <div className="pdf-msg">Bu ders için materyal tanımlanmamış.</div>
+        <MaterialStage
+          co={co}
+          material={material}
+          isTeacher={isTeacher}
+          canDraw={!isObserver}
+          tool={tool}
+          color={color}
+          size={size}
+          sticker={sticker}
+          clearNonce={clearNonce}
+        />
+
+        {/* Öğrenci (ve gözlemci): kazanılan yıldızlar köşede kalıcı gösterge */}
+        {role !== 'TEACHER' && stars > 0 && (
+          <div className="star-earned" aria-label={`${stars} yıldız kazandın`}>
+            <div className="star-earned-icons">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <IcStar key={i} filled={i <= stars} size={18} />
+              ))}
+            </div>
+            <span className="star-earned-count">{stars}/5</span>
+          </div>
         )}
       </div>
 
@@ -156,6 +261,8 @@ export function LessonRoom({
           setColor={setColor}
           size={size}
           setSize={setSize}
+          sticker={sticker}
+          setSticker={setSticker}
           canDraw={!isObserver}
           canClear={isTeacher}
           onClear={() => setConfirmClear(true)}
@@ -166,6 +273,23 @@ export function LessonRoom({
       {remotes.map((p) => (
         <ParticipantAudio key={p.session_id} participant={p} />
       ))}
+
+      {/* Yıldız gelince öğrencinin TÜM ekranında kutlama efekti (anlık, tıklamayı engellemez) */}
+      {role !== 'TEACHER' && celebrateKey > 0 && (
+        <div className="star-celebrate" key={celebrateKey} aria-hidden="true">
+          {CELEBRATE_BITS.map((b, i) => (
+            <span
+              className="star-celebrate-bit"
+              key={i}
+              style={{ left: b.left, top: b.top, fontSize: b.size, animationDelay: b.delay }}
+            >
+              ⭐
+            </span>
+          ))}
+          <div className="star-celebrate-main">⭐</div>
+          <div className="star-celebrate-text">Aferin!</div>
+        </div>
+      )}
 
       <ConfirmDialog
         open={confirmLeave}
