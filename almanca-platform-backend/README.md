@@ -58,7 +58,7 @@ Sunucu: `http://localhost:4000` — test: `GET http://localhost:4000/health`
 # Veli kaydı
 curl -X POST http://localhost:4000/api/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"email":"veli@test.com","password":"parola123","name":"Ayşe Veli"}'
+  -d '{"email":"veli@test.com","password":"<PARENT_PASSWORD>","name":"Ayşe Veli"}'
 
 # Dönen accessToken'ı kullanarak çocuk profili oluştur
 curl -X POST http://localhost:4000/api/children \
@@ -69,12 +69,12 @@ curl -X POST http://localhost:4000/api/children \
 # Admin girişi → öğretmen oluştur
 curl -X POST http://localhost:4000/api/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@platform.local","password":"admin12345"}'
+  -d '{"email":"<SEED_ADMIN_EMAIL>","password":"<SEED_ADMIN_PASSWORD>"}'
 
 curl -X POST http://localhost:4000/api/admin/teachers \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <ADMIN_ACCESS_TOKEN>" \
-  -d '{"email":"ogretmen@test.com","password":"parola123","name":"Mehmet Öğretmen"}'
+  -d '{"email":"ogretmen@test.com","password":"<TEACHER_PASSWORD>","name":"Mehmet Öğretmen"}'
 ```
 
 ## Sonraki adım

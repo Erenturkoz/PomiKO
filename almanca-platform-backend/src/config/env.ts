@@ -12,7 +12,6 @@ const schema = z.object({
   ACCESS_TOKEN_TTL: z.string().default('15m'),
   REFRESH_TOKEN_TTL_DAYS: z.coerce.number().default(7),
   SEED_ADMIN_EMAIL: z.string().email().default('admin@platform.local'),
-  SEED_ADMIN_PASSWORD: z.string().min(6).default('admin12345'),
   SEED_ADMIN_NAME: z.string().default('Platform Admin'),
   // Daily.co — ders odası video altyapısı (opsiyonel: yoksa sunucu yine açılır,
   // yalnızca oda uçları çalışmaz)

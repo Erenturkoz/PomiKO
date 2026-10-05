@@ -8,7 +8,10 @@ const prisma = new PrismaClient();
 
 async function main() {
   const email = process.env.SEED_ADMIN_EMAIL ?? 'admin@platform.local';
-  const password = process.env.SEED_ADMIN_PASSWORD ?? 'admin12345';
+  const password = process.env.SEED_ADMIN_PASSWORD;
+  if (!password || password.length < 12) {
+    throw new Error('SEED_ADMIN_PASSWORD gerekli ve en az 12 karakter olmalı.');
+  }
   const name = process.env.SEED_ADMIN_NAME ?? 'Platform Admin';
 
   const existing = await prisma.user.findUnique({ where: { email } });
@@ -25,7 +28,7 @@ async function main() {
       role: Role.ADMIN,
     },
   });
-  console.log(`✅ Admin oluşturuldu: ${email} (parola: ${password})`);
+  console.log(`✅ Admin oluşturuldu: ${email}`);
 }
 
 main()
